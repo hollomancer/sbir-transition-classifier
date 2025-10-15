@@ -5,6 +5,71 @@ from datetime import datetime, timedelta
 import pandas as pd
 
 from ..config.schema import ConfigSchema
+from ..config.defaults import DefaultConfig
+
+
+# Global scorer instance for backward compatibility
+_default_scorer = None
+
+def get_default_scorer():
+    """Get default scorer instance."""
+    global _default_scorer
+    if _default_scorer is None:
+        config = ConfigSchema()  # Use default values
+        _default_scorer = ConfigurableScorer(config)
+    return _default_scorer
+
+
+def score_transition(sbir_award, contract) -> float:
+    """
+    Backward compatibility function for scoring transitions.
+    
+    Args:
+        sbir_award: SBIR award model or dict
+        contract: Contract model or dict
+        
+    Returns:
+        Likelihood score between 0.0 and 1.0
+    """
+    scorer = get_default_scorer()
+    
+    # Convert models to dicts if needed
+    if hasattr(sbir_award, '__dict__'):
+        award_dict = {
+            'agency': sbir_award.agency,
+            'completion_date': sbir_award.completion_date,
+            'topic': sbir_award.topic,
+            'phase': sbir_award.phase
+        }
+    else:
+        award_dict = sbir_award
+    
+    if hasattr(contract, '__dict__'):
+        contract_dict = {
+            'agency': contract.agency,
+            'start_date': contract.start_date,
+            'competition_details': getattr(contract, 'competition_details', {}),
+            'raw_data': getattr(contract, 'raw_data', {})
+        }
+    else:
+        contract_dict = contract
+    
+    return scorer.calculate_likelihood_score(award_dict, contract_dict)
+
+
+def get_confidence_level(score: float) -> str:
+    """
+    Get confidence level for a given score.
+    
+    Args:
+        score: Likelihood score
+        
+    Returns:
+        Confidence level string
+    """
+    scorer = get_default_scorer()
+    _, confidence = scorer.meets_threshold(score)
+    return confidence
 
 
 class ConfigurableScorer:

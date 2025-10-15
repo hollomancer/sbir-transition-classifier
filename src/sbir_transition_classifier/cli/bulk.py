@@ -123,7 +123,10 @@ def bulk_process(
             
             # Initialize database
             init_task = progress.add_task("🔄 Initializing database...", total=1)
-            from ...scripts.load_bulk_data import init_db
+            import sys
+            from pathlib import Path
+            sys.path.append(str(Path(__file__).parent.parent.parent.parent))
+            from scripts.load_bulk_data import init_db
             init_db()
             progress.update(init_task, advance=1)
             logger.info("Database initialized for bulk processing")
@@ -207,7 +210,7 @@ def bulk_process(
                 export_task = progress.add_task("📄 Exporting JSONL...", total=1)
                 jsonl_file = output_dir / f"detections_{timestamp}.jsonl"
                 # Run export command programmatically
-                from ...scripts.export_data import export_jsonl
+                from scripts.export_data import export_jsonl
                 # This would need to be modified to work programmatically
                 export_files.append(jsonl_file)
                 progress.update(export_task, advance=1)

@@ -87,6 +87,9 @@ config/local.yaml
 config/custom.yaml
 config/*.local.yaml
 
+# Output directory
+output/
+
 # macOS
 .DS_Store
 .DS_Store?

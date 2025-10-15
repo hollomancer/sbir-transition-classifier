@@ -1,0 +1,6 @@
+2025-10-15 13:37:21.731 | INFO     | src.sbir_transition_classifier.cli.bulk:bulk_process:132 - Database initialized for bulk processing
+2025-10-15 13:37:22.971 | INFO     | src.sbir_transition_classifier.detection.main:run_full_detection:60 - Starting full detection run...
+2025-10-15 13:37:22.977 | INFO     | src.sbir_transition_classifier.detection.main:run_full_detection:64 - Found 6 Phase II awards to process.
+2025-10-15 13:37:22.978 | INFO     | src.sbir_transition_classifier.detection.main:run_detection_for_award:11 - Running detection for award: FA2541-24-C-B048
+2025-10-15 13:37:22.981 | INFO     | src.sbir_transition_classifier.detection.main:run_detection_for_award:14 - Found 1 candidate contracts.
+2025-10-15 13:37:22.983 | ERROR    | src.sbir_transition_classifier.cli.bulk:bulk_process:268 - Bulk processing failed: module 'src.sbir_transition_classifier.detection.scoring' has no attribute 'score_transition'

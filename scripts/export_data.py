@@ -1,9 +1,13 @@
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+
 import json
 import click
 import pandas as pd
 from sqlalchemy.orm import Session
-from sbir_transition_classifier.db.database import SessionLocal
-from sbir_transition_classifier.core import models
+from src.sbir_transition_classifier.db.database import SessionLocal
+from src.sbir_transition_classifier.core import models
 from loguru import logger
 import time
 from pathlib import Path

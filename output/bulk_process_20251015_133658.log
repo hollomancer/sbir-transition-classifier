@@ -1,0 +1,1 @@
+2025-10-15 13:36:58.313 | ERROR    | src.sbir_transition_classifier.cli.bulk:bulk_process:265 - Bulk processing failed: No module named 'src.scripts.load_bulk_data'
