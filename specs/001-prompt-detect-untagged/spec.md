@@ -5,6 +5,16 @@
 **Status**: Draft
 **Input**: User description: "Prompt: Detect Untagged SBIR Phase III Transitions..."
 
+## Clarifications
+
+### Session 2025-10-15
+
+- Q: Data Volume and Processing Scale → A: Batch processing with configurable chunks (10K-100K records)
+- Q: False Positive Handling Strategy → A: Manual review queue with feedback loop for model improvement
+- Q: Data Retention and Storage Requirements → A: None applicable to this project
+- Q: Machine Learning Model Update Frequency → A: Quarterly retraining with seasonal data patterns
+- Q: API Authentication and Access Control → A: No authentication (local single-user deployment)
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Detect High-Confidence Transitions (Priority: P1)
@@ -65,19 +75,23 @@ As a policy analyst, I want to access the raw detection data via an API and expo
 
 ### Functional Requirements
 
--   **FR-001**: System MUST ingest and process contract data from USAspending and FPDS.
+-   **FR-001**: System MUST ingest and process contract data from USAspending and FPDS using batch processing with configurable chunk sizes (10K-100K records).
 -   **FR-002**: System MUST ingest SBIR award metadata from SBIR.gov.
 -   **FR-003**: System MUST identify Indefinite Delivery Vehicles (IDVs) like BOAs, BPAs, and IDIQs awarded to a vendor within a 1-24 month window after the vendor's Phase II award completion date.
 -   **FR-004**: System MUST link all child orders to their parent IDV to track total revenue and duration.
 -   **FR-005**: System MUST use vendor identifiers (UEI, DUNS, CAGE) to track entities and maintain alias tables for novations.
 -   **FR-006**: System MUST analyze contract fields including PIID, Referenced-IDV PIID, agency/office codes, NAICS, PSC, and competition fields.
--   **FR-007**: System MUST calculate a `Transition Likelihood Score` (0-1) for potential transitions, blending rule-based heuristics and a simple gradient boosting model.
+-   **FR-007**: System MUST calculate a `Transition Likelihood Score` (0-1) for potential transitions, blending rule-based heuristics and a simple gradient boosting model with quarterly retraining cycles.
 -   **FR-008**: System MUST classify transitions with a score ≥ 0.65 as "Likely Transition" and ≥ 0.80 as "High Confidence."
 -   **FR-009**: System MUST generate a detailed, auditable evidence bundle for each detection, including source fields, values, and dates.
--   **FR-010**: System MUST provide a `POST /detect` API endpoint to initiate analysis for a firm or award.
--   **FR-011**: System MUST provide a `GET /evidence/{id}` API endpoint to retrieve a specific evidence bundle.
+-   **FR-010**: System MUST provide a `POST /detect` API endpoint to initiate analysis for a firm or award (no authentication required for local deployment).
+-   **FR-011**: System MUST provide a `GET /evidence/{id}` API endpoint to retrieve a specific evidence bundle (no authentication required for local deployment).
 -   **FR-012**: System MUST output detections in a JSONL format.
 -   **FR-013**: System MUST output summary reports in a CSV format, aggregated by vendor, agency, and Fiscal Year.
+-   **FR-014**: System MUST provide a manual review queue for analysts to validate detections and provide feedback for model improvement.
+-   **FR-015**: System MUST track analyst feedback (confirmed/rejected detections) to retrain and improve detection accuracy.
+-   **FR-016**: System has no specific data retention requirements - data persistence is managed at the deployment level.
+-   **FR-017**: System MUST retrain the gradient boosting model quarterly to capture seasonal procurement patterns and incorporate accumulated feedback.
 
 ### Key Entities *(include if feature involves data)*
 
