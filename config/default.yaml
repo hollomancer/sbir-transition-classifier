@@ -1,0 +1,23 @@
+schema_version: "1.0"
+
+detection:
+  thresholds:
+    high_confidence: 0.85
+    likely_transition: 0.65
+  weights:
+    sole_source_bonus: 0.2
+    timing_weight: 0.15
+    agency_continuity: 0.25
+    text_similarity: 0.1
+  features:
+    enable_cross_service: true
+    enable_text_analysis: false
+    enable_competed_contracts: true
+  timing:
+    max_months_after_phase2: 24
+    min_months_after_phase2: 0
+
+output:
+  formats: ["jsonl", "csv"]
+  include_evidence: true
+  evidence_detail_level: "full"

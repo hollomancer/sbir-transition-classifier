@@ -82,6 +82,11 @@ data/*.zip
 # Keep data directory structure but ignore large files
 !data/README.md
 
+# Local configuration overrides
+config/local.yaml
+config/custom.yaml
+config/*.local.yaml
+
 # macOS
 .DS_Store
 .DS_Store?
