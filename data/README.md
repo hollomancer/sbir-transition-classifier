@@ -2,28 +2,45 @@
 
 This directory contains all bulk data files for the SBIR Transition Detection System.
 
-## Current Files
+**Note: Data files are excluded from git due to size (400MB+). Download separately.**
 
-- `award_data.csv` - SBIR Phase I and II awards data (381MB)
+## Required Files
 
-## USAspending Data
+### SBIR Awards Data
+- **File:** `award_data.csv` (364MB)
+- **Source:** SBIR.gov database export
+- **Contains:** Complete SBIR Phase I and II awards
 
-Download contract data from https://www.usaspending.gov/download_center/award_data_archive
+### USAspending Contract Data
+- **File:** `FY2026_All_Contracts_Full_20251008_1.csv` (18.6MB)
+- **Source:** https://www.usaspending.gov/download_center/award_data_archive
+- **Contains:** FY2026 federal contract data
 
-### Recommended Files:
+## Download Instructions
+
+### For SBIR Data:
+Contact project maintainer for `award_data.csv` file
+
+### For USAspending Data:
+1. Visit https://www.usaspending.gov/download_center/award_data_archive
+2. Download contract data for desired fiscal years
+3. Place files in this directory
+
+### Recommended Additional Files:
 - `Contracts_PrimeAwardSummary_2020_1.csv`
 - `Contracts_PrimeAwardSummary_2021_1.csv`
 - `Contracts_PrimeAwardSummary_2022_1.csv`
 - `Contracts_PrimeAwardSummary_2023_1.csv`
 - `Contracts_PrimeAwardSummary_2024_1.csv`
 
-### Processing:
+## Processing
+
 ```bash
 # Load SBIR data
-python -m scripts.load_bulk_data load-sbir-data
+PYTHONPATH=. python scripts/load_bulk_data.py load-sbir-data
 
-# Load contract data (when available)
-python -m scripts.load_bulk_data load-contract-data --file-path data/Contracts_PrimeAwardSummary_2024_1.csv
+# Run enhanced analysis
+PYTHONPATH=. python scripts/enhanced_analysis.py --sbir-sample 10000 --contract-sample 2000
 ```
 
-**Note**: Contract files are large (2-10GB each). Start with one fiscal year for testing.
+**Note**: Start with smaller samples for testing before processing full datasets.
