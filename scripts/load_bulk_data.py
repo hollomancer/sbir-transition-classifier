@@ -25,7 +25,7 @@ def cli():
 
 @cli.command()
 @click.option('--file-path', default='data/award_data.csv', help='Path to the SBIR award data CSV file.')
-@click.option('--chunk-size', default=10000, help='Number of rows to process at a time.')
+@click.option('--chunk-size', default=5000, help='Number of rows to process at a time.')
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose logging')
 def load_sbir_data(file_path, chunk_size, verbose):
     """Loads SBIR award data from a CSV file into the database."""
@@ -101,6 +101,11 @@ def load_sbir_data(file_path, chunk_size, verbose):
                 partition_awards = 0
                 partition_errors = 0
                 
+                # Batch processing - collect all operations before committing
+                vendors_to_create = []
+                awards_to_create = []
+                vendor_cache = {}
+                
                 for _, row in df.iterrows():
                     try:
                         # Basic data cleaning and vendor handling
@@ -114,24 +119,27 @@ def load_sbir_data(file_path, chunk_size, verbose):
                             partition_errors += 1
                             continue
 
-                        vendor = db.query(models.Vendor).filter(models.Vendor.name == company_name).first()
-                        if not vendor:
-                            vendor = models.Vendor(name=company_name)
-                            db.add(vendor)
-                            db.flush()  # Get the ID without committing
-                            partition_vendors += 1
+                        # Check cache first, then database
+                        vendor_id = vendor_cache.get(company_name)
+                        if not vendor_id:
+                            vendor = db.query(models.Vendor).filter(models.Vendor.name == company_name).first()
+                            if vendor:
+                                vendor_id = vendor.id
+                                vendor_cache[company_name] = vendor_id
+                            else:
+                                # Queue for batch creation
+                                vendor_obj = models.Vendor(name=company_name)
+                                vendors_to_create.append(vendor_obj)
+                                vendor_cache[company_name] = vendor_obj  # Temporary reference
+                                partition_vendors += 1
 
-                        award = models.SbirAward(
-                            vendor_id=vendor.id,
-                            award_piid=row.get('Award Number', ''),
-                            phase=row.get('Phase', ''),
-                            agency=row.get('Agency', ''),
-                            # Add robust date parsing
-                            # award_date=pd.to_datetime(row.get('Award Date'), errors='coerce'),
-                            # completion_date=pd.to_datetime(row.get('End Date'), errors='coerce'),
-                            topic=row.get('Topic', ''),
-                        )
-                        db.add(award)
+                        award_data = {
+                            'award_piid': row.get('Award Number', ''),
+                            'phase': row.get('Phase', ''),
+                            'agency': row.get('Agency', ''),
+                            'topic': row.get('Topic', ''),
+                        }
+                        awards_to_create.append((company_name, award_data))
                         partition_awards += 1
                         
                     except Exception as e:
@@ -139,7 +147,31 @@ def load_sbir_data(file_path, chunk_size, verbose):
                         if verbose:
                             logger.warning(f"Error processing row: {e}")
                 
+                # Batch insert vendors
+                if vendors_to_create:
+                    db.add_all(vendors_to_create)
+                    db.flush()  # Get IDs without committing
+                    
+                    # Update cache with actual IDs
+                    for vendor_obj in vendors_to_create:
+                        vendor_cache[vendor_obj.name] = vendor_obj.id
+                
+                # Batch insert awards
+                award_objects = []
+                for company_name, award_data in awards_to_create:
+                    vendor_id = vendor_cache[company_name]
+                    if hasattr(vendor_id, 'id'):  # Handle vendor objects
+                        vendor_id = vendor_id.id
+                    
+                    award = models.SbirAward(vendor_id=vendor_id, **award_data)
+                    award_objects.append(award)
+                
+                if award_objects:
+                    db.add_all(award_objects)
+                
+                # Single commit for entire partition
                 db.commit()
+                
                 partition_time = time.time() - partition_start
                 processed_rows += len(df)
                 vendors_created += partition_vendors

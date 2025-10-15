@@ -31,13 +31,18 @@ from ..detection.main import run_full_detection
 @click.option(
     '--chunk-size',
     type=int,
-    default=1000,
+    default=5000,
     help='Number of records to process in each batch'
 )
 @click.option(
     '--verbose', '-v',
     is_flag=True,
     help='Enable verbose logging with detailed progress'
+)
+@click.option(
+    '--quiet', '-q',
+    is_flag=True,
+    help='Minimal output - just results'
 )
 @click.option(
     '--export-format',
@@ -50,15 +55,18 @@ def bulk_process(
     output_dir: Path, 
     chunk_size: int,
     verbose: bool,
+    quiet: bool,
     export_format: str
 ):
     """Run bulk SBIR transition detection on all available data."""
     
-    console = Console()
+    console = Console(quiet=quiet)
     
-    if verbose:
+    if verbose and not quiet:
         logger.remove()
         logger.add(lambda msg: console.print(msg, style="dim"), level="DEBUG")
+    elif quiet:
+        logger.remove()  # Suppress all logging in quiet mode
     else:
         logger.remove()
         logger.add(lambda msg: console.print(msg, style="dim"), level="INFO")
@@ -209,16 +217,30 @@ def bulk_process(
             if export_format in ['jsonl', 'both']:
                 export_task = progress.add_task("📄 Exporting JSONL...", total=1)
                 jsonl_file = output_dir / f"detections_{timestamp}.jsonl"
-                # Run export command programmatically
-                from scripts.export_data import export_jsonl
-                # This would need to be modified to work programmatically
-                export_files.append(jsonl_file)
+                
+                # Actually run the export
+                import subprocess
+                result = subprocess.run([
+                    'python', '-m', 'scripts.export_data', 'export-jsonl',
+                    '--output-path', str(jsonl_file)
+                ], cwd=Path.cwd(), capture_output=True, text=True)
+                
+                if result.returncode == 0:
+                    export_files.append(jsonl_file)
                 progress.update(export_task, advance=1)
                 
             if export_format in ['csv', 'both']:
                 csv_task = progress.add_task("📊 Exporting CSV summary...", total=1)
-                csv_file = output_dir / f"detections_summary_{timestamp}.csv" 
-                export_files.append(csv_file)
+                csv_file = output_dir / f"detections_summary_{timestamp}.csv"
+                
+                # Actually run the export
+                result = subprocess.run([
+                    'python', '-m', 'scripts.export_data', 'export-csv-summary',
+                    '--output-path', str(csv_file)
+                ], cwd=Path.cwd(), capture_output=True, text=True)
+                
+                if result.returncode == 0:
+                    export_files.append(csv_file)
                 progress.update(csv_task, advance=1)
         
         export_time = time.time() - export_start

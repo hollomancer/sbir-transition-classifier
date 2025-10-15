@@ -8,11 +8,9 @@ import uuid
 
 def run_detection_for_award(db: Session, sbir_award: models.SbirAward):
     """Runs the detection process for a single SBIR award."""
-    logger.info(f"Running detection for award: {sbir_award.award_piid}")
-    
+    # Remove all logging during processing for clean UX
     candidate_contracts = heuristics.find_candidate_contracts(db, sbir_award)
-    logger.info(f"Found {len(candidate_contracts)} candidate contracts.")
-
+    
     for contract in candidate_contracts:
         score = scoring.score_transition(sbir_award, contract)
         confidence = scoring.get_confidence_level(score)
@@ -57,14 +55,58 @@ def run_detection_for_award(db: Session, sbir_award: models.SbirAward):
 
 def run_full_detection():
     """Runs the detection process for all Phase II SBIR awards."""
-    logger.info("Starting full detection run...")
+    from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn
+    from rich.console import Console
+    
+    console = Console()
     db: Session = SessionLocal()
     try:
-        phase_ii_awards = db.query(models.SbirAward).filter(models.SbirAward.phase == 'Phase II').all()
-        logger.info(f"Found {len(phase_ii_awards)} Phase II awards to process.")
-        for award in phase_ii_awards:
-            run_detection_for_award(db, award)
-        logger.info("Full detection run complete.")
+        console.print("🔍 Analyzing Phase II awards...", style="bold blue")
+        
+        # Get awards that don't already have detections
+        subquery = db.query(models.Detection.sbir_award_id).distinct()
+        phase_ii_awards = (db.query(models.SbirAward)
+                          .filter(models.SbirAward.phase == 'Phase II')
+                          .filter(~models.SbirAward.id.in_(subquery))
+                          .all())
+        
+        total_awards = len(phase_ii_awards)
+        if total_awards == 0:
+            console.print("✅ All Phase II awards already processed.", style="green")
+            return
+            
+        console.print(f"📊 Found {total_awards:,} new awards to process", style="cyan")
+        
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TaskProgressColumn(),
+            TimeElapsedColumn(),
+        ) as progress:
+            
+            task = progress.add_task("🔍 Detecting transitions", total=total_awards)
+            
+            new_detections = 0
+            for i, award in enumerate(phase_ii_awards, 1):
+                # Count detections before processing
+                before_count = db.query(models.Detection).count()
+                
+                run_detection_for_award(db, award)
+                
+                # Count detections after processing
+                after_count = db.query(models.Detection).count()
+                new_detections += (after_count - before_count)
+                
+                if i % 50 == 0:
+                    db.commit()
+                
+                progress.update(task, advance=1)
+        
+        # Final commit
+        db.commit()
+        console.print(f"✅ Detection complete. Found {new_detections} new transitions.", style="green bold")
+        
     finally:
         db.close()
 
