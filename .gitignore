@@ -71,3 +71,17 @@ dmypy.json
 *.db
 *.sqlite
 *.sqlite3
+
+# Large data files
+data/*.csv
+data/*.json
+data/*.jsonl
+data/*.xlsx
+data/*.zip
+
+# Keep data directory structure but ignore large files
+!data/README.md
+
+# macOS
+.DS_Store
+.DS_Store?
