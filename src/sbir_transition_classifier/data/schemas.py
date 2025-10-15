@@ -90,6 +90,3 @@ class Detection(DetectionBase):
     class Config:
         orm_mode = True
 
-class DetectRequest(BaseModel):
-    vendor_identifier: Optional[str] = None
-    sbir_award_piid: Optional[str] = None

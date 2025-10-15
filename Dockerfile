@@ -17,8 +17,8 @@ RUN pip install --no-cache-dir -e .
 COPY src/ ./src/
 COPY scripts/ ./scripts/
 
-# Expose port
-EXPOSE 8000
+# Create output directory
+RUN mkdir -p /app/output
 
-# Run the application
-CMD ["uvicorn", "src.sbir_transition_classifier.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Default command is interactive shell for running CLI tools
+CMD ["/bin/bash"]

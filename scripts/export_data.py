@@ -1,8 +1,12 @@
 import json
 import click
+import pandas as pd
 from sqlalchemy.orm import Session
 from sbir_transition_classifier.db.database import SessionLocal
 from sbir_transition_classifier.core import models
+from loguru import logger
+import time
+from pathlib import Path
 
 @click.group()
 def cli():
@@ -10,19 +14,68 @@ def cli():
 
 @cli.command()
 @click.option('--output-path', default='detections.jsonl', help='Path to the output JSONL file.')
-def export_jsonl(output_path):
+@click.option('--verbose', '-v', is_flag=True, help='Enable verbose logging')
+def export_jsonl(output_path, verbose):
     """Exports all detections to a JSONL file."""
-    click.echo(f"Exporting detections to {output_path}...")
+    if verbose:
+        logger.remove()
+        logger.add(lambda msg: click.echo(msg, err=True), level="DEBUG")
+    
+    start_time = time.time()
+    click.echo(f"📤 Exporting detections to {output_path}...")
+    
     db: Session = SessionLocal()
     try:
+        # Get count first for progress tracking
+        total_count = db.query(models.Detection).count()
+        
+        if total_count == 0:
+            click.echo("⚠️  No detections found in database.")
+            return
+        
+        click.echo(f"🔍 Found {total_count:,} detections to export")
+        
         detections = db.query(models.Detection).all()
+        
+        output_file = Path(output_path)
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        exported_count = 0
         with open(output_path, 'w') as f:
-            for detection in detections:
-                # A more complete implementation would serialize the full object
-                f.write(json.dumps(detection.evidence_bundle) + '\n')
+            for i, detection in enumerate(detections, 1):
+                try:
+                    # A more complete implementation would serialize the full object
+                    detection_data = {
+                        'detection_id': str(detection.id),
+                        'likelihood_score': detection.likelihood_score,
+                        'confidence': detection.confidence,
+                        'evidence_bundle': detection.evidence_bundle
+                    }
+                    f.write(json.dumps(detection_data) + '\n')
+                    exported_count += 1
+                    
+                    # Progress indicator every 100 records or at the end
+                    if i % 100 == 0 or i == total_count:
+                        progress = (i / total_count) * 100
+                        click.echo(f"📊 Progress: {i:,}/{total_count:,} ({progress:.1f}%)")
+                        
+                except Exception as e:
+                    if verbose:
+                        logger.warning(f"Error exporting detection {detection.id}: {e}")
+                    continue
+    
     finally:
         db.close()
-    click.echo("Export complete.")
+    
+    export_time = time.time() - start_time
+    file_size = Path(output_path).stat().st_size / 1024  # KB
+    
+    click.echo(f"\n✅ Export complete!")
+    click.echo(f"📈 Summary:")
+    click.echo(f"   • Records exported: {exported_count:,}")
+    click.echo(f"   • Output file: {output_path}")
+    click.echo(f"   • File size: {file_size:.1f} KB")
+    click.echo(f"   • Export time: {export_time:.1f} seconds")
 
 @cli.command()
 @click.option('--output-path', default='detections_summary.csv', help='Path to the output CSV file.')

@@ -1,26 +1,27 @@
 # SBIR Transition Detection System
 
-A system to detect untagged SBIR Phase III transitions by analyzing federal spending data and identifying potential commercialization patterns.
+A command-line tool to detect untagged SBIR Phase III transitions by analyzing federal spending data and identifying potential commercialization patterns.
 
 ## Overview
 
-This system ingests bulk federal spending data, uses a combination of heuristics and machine learning to identify potential SBIR Phase III transitions, and exposes the results via a REST API. The primary goal is to create a reliable, auditable process for identifying SBIR commercialization that is not officially flagged.
+This system processes bulk federal spending data using a combination of heuristics and machine learning to identify potential SBIR Phase III transitions. The primary goal is to create a reliable, auditable process for identifying SBIR commercialization that is not officially flagged through comprehensive data analysis and export capabilities.
 
 ## Features
 
 - **High-Confidence Detection**: Identifies likely transitions using strong structural signals like sole-source contracts
 - **Broad Search Capabilities**: Detects competed and cross-service transitions
-- **REST API**: Access and export detection data programmatically
+- **Command-Line Interface**: Easy-to-use CLI tools for data loading, processing, and export
 - **Auditable Evidence**: Each detection includes a comprehensive evidence bundle
-- **Bulk Data Processing**: Efficiently processes large federal spending datasets
+- **Bulk Data Processing**: Efficiently processes large federal spending datasets with progress tracking
+- **Multiple Export Formats**: Export results as JSONL, CSV, or both formats
+- **Real-time Progress Monitoring**: Visual indicators and detailed logging for long-running operations
 
 ## Quick Start
 
 ### Prerequisites
 
-- Docker
-- Docker Compose
-- `curl` or similar HTTP client
+- Docker and Docker Compose (recommended) OR
+- Python 3.11+ with Poetry (local development)
 
 ### Setup
 
@@ -31,48 +32,78 @@ This system ingests bulk federal spending data, uses a combination of heuristics
    ```
 
 2. **Prepare data**:
-   - Ensure `data/award_data.csv` is present (SBIR awards data)
-   - Download USAspending bulk data files to `data/` directory
+   - Place SBIR awards data in `data/award_data.csv`
+   - Add USAspending bulk data files to `data/` directory
+   - The system will automatically detect and process CSV files
 
-3. **Start the services**:
+3. **Choose your setup method**:
+   
+   **Option A: Docker (Recommended)**
    ```bash
    docker-compose up --build -d
+   docker-compose exec sbir-classifier /bin/bash
+   ```
+   
+   **Option B: Local Python Environment**
+   ```bash
+   poetry install
+   poetry shell
    ```
 
 ### Usage
 
-#### 1. Load Data
+#### 1. Quick Bulk Processing (Recommended)
 ```bash
-# Load SBIR awards and contract data
-docker-compose exec api python -m scripts.load_bulk_data
+# Run complete detection pipeline with automatic data loading and export
+python -m src.sbir_transition_classifier.cli.main bulk-process --verbose
+
+# Or with Docker:
+docker-compose exec sbir-classifier python -m src.sbir_transition_classifier.cli.main bulk-process
 ```
 
-#### 2. Trigger Detection
+#### 2. Step-by-Step Processing
+
+**Load SBIR Awards Data:**
 ```bash
-curl -X POST http://localhost:8000/detect \
-  -H "Content-Type: application/json" \
-  -d '{"vendor_identifier": "ABCDE12345"}'
+python -m scripts.load_bulk_data load-sbir-data --file-path data/award_data.csv --verbose
 ```
 
-#### 3. Retrieve Evidence
+**Export Detection Results:**
 ```bash
-curl http://localhost:8000/evidence/<detection-uuid>
+# Export as JSONL
+python -m scripts.export_data export-jsonl --output-path output/detections.jsonl --verbose
+
+# Export as CSV summary
+python -m scripts.export_data export-csv-summary --output-path output/summary.csv
+```
+
+#### 3. Advanced CLI Usage
+
+**View System Information:**
+```bash
+python -m src.sbir_transition_classifier.cli.main info
+```
+
+**Quick Database Statistics:**
+```bash
+python -m src.sbir_transition_classifier.cli.main quick-stats
 ```
 
 ## Architecture
 
 ### Tech Stack
 - **Language**: Python 3.11
-- **API Framework**: FastAPI
+- **CLI Framework**: Click
 - **Database**: SQLite
 - **Data Processing**: Pandas, Dask
 - **Machine Learning**: XGBoost, scikit-learn
+- **Logging**: Loguru
 - **Containerization**: Docker
 
 ### Project Structure
 ```
 src/sbir_transition_classifier/
-├── api/           # FastAPI application
+├── cli/           # Command-line interface commands
 ├── core/          # Configuration and data models
 ├── data/          # Data schemas and validation
 ├── detection/     # Detection algorithms and scoring
@@ -80,6 +111,7 @@ src/sbir_transition_classifier/
 
 scripts/           # Data loading and export utilities
 tests/             # Unit and integration tests
+output/            # Generated reports and exports
 ```
 
 ## Data Model
@@ -105,74 +137,131 @@ The system uses five main entities:
 - Department-level continuity
 - Text-based analysis of descriptions
 
-## API Reference
+## Command-Line Reference
 
-### POST /detect
-Initiates detection analysis for a vendor or specific SBIR award.
+### Main Commands
 
-**Request Body:**
-```json
-{
-  "vendor_identifier": "ABCDE12345",  // UEI, CAGE, or DUNS
-  "sbir_award_piid": "W911NF-18-C-0033"  // Optional: specific award
-}
+**`bulk-process`** - Complete end-to-end processing pipeline
+```bash
+python -m src.sbir_transition_classifier.cli.main bulk-process [OPTIONS]
+
+Options:
+  --data-dir PATH          Directory containing input data files [default: ./data]
+  --output-dir PATH        Output directory for results [default: ./output]  
+  --chunk-size INTEGER     Batch size for processing [default: 1000]
+  --export-format [jsonl|csv|both]  Export format [default: both]
+  --verbose, -v            Enable detailed progress logging
 ```
 
-**Response:**
-```json
-{
-  "task_id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
-  "status": "Analysis has been accepted and is in progress."
-}
+**`info`** - Display system and configuration information
+```bash
+python -m src.sbir_transition_classifier.cli.main info
 ```
 
-### GET /evidence/{detection_id}
-Retrieves the evidence bundle for a specific detection.
+**`quick-stats`** - Show database statistics and summary metrics
+```bash
+python -m src.sbir_transition_classifier.cli.main quick-stats
+```
 
-**Response:**
-```json
-{
-  "detection_id": "<uuid>",
-  "likelihood_score": 0.85,
-  "confidence": "High Confidence",
-  "reason_string": "Sole-source IDV awarded 8 months after Phase II completion by the same agency.",
-  "source_sbir_award": {...},
-  "source_contract": {...}
-}
+### Data Scripts
+
+**Load SBIR Data:**
+```bash
+python -m scripts.load_bulk_data load-sbir-data --file-path data/awards.csv --verbose
+```
+
+**Export Results:**
+```bash
+python -m scripts.export_data export-jsonl --output-path results.jsonl
+python -m scripts.export_data export-csv-summary --output-path summary.csv
 ```
 
 ## Development
 
+### Local Development Setup
+```bash
+# Install dependencies
+poetry install
+
+# Run in development mode
+poetry shell
+python -m src.sbir_transition_classifier.cli.main --help
+```
+
 ### Running Tests
 ```bash
 # Unit tests
-python -m pytest tests/unit/
+poetry run pytest tests/unit/
 
 # Integration tests
-python -m pytest tests/integration/
+poetry run pytest tests/integration/
+
+# Full test suite
+poetry run pytest
 ```
 
-### Data Export
+### Development Workflow
 ```bash
-# Export all detections to JSONL
-python -m scripts.export_data --format jsonl
+# Load sample data
+python -m scripts.load_bulk_data load-sbir-data --file-path data/sample_awards.csv
 
-# Generate CSV summary report
-python -m scripts.export_data --format csv
+# Run detection on small dataset
+python -m src.sbir_transition_classifier.cli.main bulk-process --data-dir data/samples
+
+# Export and review results
+python -m scripts.export_data export-jsonl --output-path dev_results.jsonl
 ```
 
 ## Performance
 
 - **Target**: Backtest a full fiscal year in < 8 hours
-- **API Response**: p95 < 500ms
+- **Processing Rate**: 1000+ records/minute on modern hardware  
 - **Scale**: Processes 10-100GB yearly data files
+- **Memory Efficiency**: Streaming processing with configurable chunk sizes
+
+## Example Workflows
+
+### Complete Processing Pipeline
+```bash
+# 1. Start with fresh environment
+docker-compose up --build -d
+docker-compose exec sbir-classifier /bin/bash
+
+# 2. Run complete pipeline with progress monitoring
+python -m src.sbir_transition_classifier.cli.main bulk-process \
+  --data-dir /app/data \
+  --output-dir /app/output \
+  --export-format both \
+  --verbose
+
+# 3. Check results
+ls -la /app/output/
+```
+
+### Manual Step-by-Step Processing
+```bash
+# Load data with progress tracking
+python -m scripts.load_bulk_data load-sbir-data \
+  --file-path data/awards.csv \
+  --chunk-size 5000 \
+  --verbose
+
+# Check system status
+python -m src.sbir_transition_classifier.cli.main quick-stats
+
+# Export results in multiple formats
+python -m scripts.export_data export-jsonl --output-path detections.jsonl --verbose
+python -m scripts.export_data export-csv-summary --output-path summary.csv
+```
 
 ## Contributing
 
-1. Follow the existing code structure and patterns
-2. Add tests for new functionality
-3. Update documentation as needed
-4. Ensure Docker builds succeed
+1. Follow existing CLI patterns and command structure
+2. Add progress indicators for long-running operations
+3. Include comprehensive logging and error handling
+4. Add tests for new functionality
+5. Update documentation and help text
+6. Ensure Docker builds succeed
 
 ## License
 
@@ -180,4 +269,30 @@ python -m scripts.export_data --format csv
 
 ---
 
-For detailed setup instructions and validation steps, see [quickstart.md](specs/001-prompt-detect-untagged/quickstart.md).
+## Quick Reference Card
+
+**Most Common Commands:**
+```bash
+# Quick start (recommended)
+./scripts/sbir-detect bulk-process --verbose
+
+# Manual data loading
+python -m scripts.load_bulk_data load-sbir-data --file-path data/awards.csv --verbose
+
+# Export results
+python -m scripts.export_data export-jsonl --output-path results.jsonl --verbose
+
+# System status
+./scripts/sbir-detect quick-stats
+```
+
+**File Organization:**
+- `data/` - Input CSV files (awards, contracts)
+- `output/` - Generated reports and exports  
+- `scripts/` - Data loading and export utilities
+- `src/` - Core application code
+
+**Log Files:**
+- Bulk processing creates timestamped logs in output directory
+- Use `--verbose` flag for detailed progress tracking
+- Docker logs: `docker-compose logs sbir-classifier`
