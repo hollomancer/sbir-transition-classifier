@@ -2,6 +2,9 @@
 
 import click
 from loguru import logger
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
 
 from .run import run
 from .bulk import bulk_process
@@ -17,12 +20,14 @@ from .summary import generate_summary, quick_stats
 def main(verbose: bool):
     """SBIR Transition Classifier - Local execution tool for detecting untagged SBIR Phase III transitions."""
     
+    console = Console()
+    
     if verbose:
         logger.remove()
-        logger.add(lambda msg: click.echo(msg, err=True), level="DEBUG")
+        logger.add(lambda msg: console.print(msg, style="dim"), level="DEBUG")
     else:
         logger.remove()
-        logger.add(lambda msg: click.echo(msg, err=True), level="INFO")
+        logger.add(lambda msg: console.print(msg, style="dim"), level="INFO")
 
 
 # Add subcommands
@@ -42,8 +47,13 @@ main.add_command(quick_stats, name="quick-stats")
 @main.command()
 def version():
     """Show version information."""
-    click.echo("SBIR Transition Classifier v0.1.0")
-    click.echo("Local execution mode for SBIR Phase III transition detection")
+    console = Console()
+    console.print(Panel.fit(
+        "[bold blue]SBIR Transition Classifier[/bold blue]\n"
+        "[dim]Version 0.1.0[/dim]\n"
+        "[dim]Local execution mode for SBIR Phase III transition detection[/dim]",
+        border_style="blue"
+    ))
 
 
 @main.command()
@@ -52,18 +62,38 @@ def info():
     import sys
     from pathlib import Path
     
-    click.echo("System Information:")
-    click.echo(f"  Python: {sys.version}")
-    click.echo(f"  Platform: {sys.platform}")
-    click.echo(f"  Working Directory: {Path.cwd()}")
+    console = Console()
+    
+    # System info table
+    info_table = Table(title="🖥️  System Information")
+    info_table.add_column("Property", style="cyan")
+    info_table.add_column("Value", style="white")
+    
+    info_table.add_row("Python Version", sys.version.split()[0])
+    info_table.add_row("Platform", sys.platform)
+    info_table.add_row("Working Directory", str(Path.cwd()))
     
     # Try to find default config
     try:
         from ..config.loader import ConfigLoader
         default_path = ConfigLoader.get_default_config_path()
-        click.echo(f"  Default Config: {default_path}")
+        info_table.add_row("Default Config", str(default_path))
     except Exception as e:
-        click.echo(f"  Default Config: Not found ({e})")
+        info_table.add_row("Default Config", f"[red]Not found ({e})[/red]")
+    
+    console.print(info_table)
+    
+    # Quick usage tips
+    console.print()
+    tips_table = Table(title="💡 Quick Start Tips")
+    tips_table.add_column("Command", style="green")
+    tips_table.add_column("Description", style="white")
+    
+    tips_table.add_row("sbir-detect bulk-process --verbose", "Run complete detection pipeline")
+    tips_table.add_row("sbir-detect quick-stats", "Show database statistics")
+    tips_table.add_row("sbir-detect --help", "Show all available commands")
+    
+    console.print(tips_table)
 
 
 if __name__ == "__main__":

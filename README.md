@@ -14,14 +14,14 @@ This system processes bulk federal spending data using a combination of heuristi
 - **Auditable Evidence**: Each detection includes a comprehensive evidence bundle
 - **Bulk Data Processing**: Efficiently processes large federal spending datasets with progress tracking
 - **Multiple Export Formats**: Export results as JSONL, CSV, or both formats
-- **Real-time Progress Monitoring**: Visual indicators and detailed logging for long-running operations
+- **Rich Progress Indicators**: Visual progress bars and detailed status updates for long-running operations
 
 ## Quick Start
 
 ### Prerequisites
 
-- Docker and Docker Compose (recommended) OR
-- Python 3.11+ with Poetry (local development)
+- Python 3.11+
+- Poetry (for dependency management)
 
 ### Setup
 
@@ -31,62 +31,63 @@ This system processes bulk federal spending data using a combination of heuristi
    cd sbir-transition-classifier
    ```
 
-2. **Prepare data**:
+2. **Run the setup script**:
+   ```bash
+   python setup.py
+   ```
+   
+   Or manually:
+   ```bash
+   poetry install
+   ```
+
+3. **Prepare data**:
    - Place SBIR awards data in `data/award_data.csv`
    - Add USAspending bulk data files to `data/` directory
    - The system will automatically detect and process CSV files
-
-3. **Choose your setup method**:
-   
-   **Option A: Docker (Recommended)**
-   ```bash
-   docker-compose up --build -d
-   docker-compose exec sbir-classifier /bin/bash
-   ```
-   
-   **Option B: Local Python Environment**
-   ```bash
-   poetry install
-   poetry shell
-   ```
 
 ### Usage
 
 #### 1. Quick Bulk Processing (Recommended)
 ```bash
 # Run complete detection pipeline with automatic data loading and export
-python -m src.sbir_transition_classifier.cli.main bulk-process --verbose
+poetry run sbir-detect bulk-process --verbose
 
-# Or with Docker:
-docker-compose exec sbir-classifier python -m src.sbir_transition_classifier.cli.main bulk-process
+# Or using the module directly
+poetry run python -m src.sbir_transition_classifier.cli.main bulk-process --verbose
 ```
 
 #### 2. Step-by-Step Processing
 
 **Load SBIR Awards Data:**
 ```bash
-python -m scripts.load_bulk_data load-sbir-data --file-path data/award_data.csv --verbose
+poetry run python -m scripts.load_bulk_data load-sbir-data --file-path data/award_data.csv --verbose
 ```
 
 **Export Detection Results:**
 ```bash
 # Export as JSONL
-python -m scripts.export_data export-jsonl --output-path output/detections.jsonl --verbose
+poetry run python -m scripts.export_data export-jsonl --output-path output/detections.jsonl --verbose
 
 # Export as CSV summary
-python -m scripts.export_data export-csv-summary --output-path output/summary.csv
+poetry run python -m scripts.export_data export-csv-summary --output-path output/summary.csv
 ```
 
-#### 3. Advanced CLI Usage
+#### 3. CLI Commands
 
 **View System Information:**
 ```bash
-python -m src.sbir_transition_classifier.cli.main info
+poetry run sbir-detect info
 ```
 
 **Quick Database Statistics:**
 ```bash
-python -m src.sbir_transition_classifier.cli.main quick-stats
+poetry run sbir-detect quick-stats
+```
+
+**Show all available commands:**
+```bash
+poetry run sbir-detect --help
 ```
 
 ## Architecture
@@ -94,11 +95,12 @@ python -m src.sbir_transition_classifier.cli.main quick-stats
 ### Tech Stack
 - **Language**: Python 3.11
 - **CLI Framework**: Click
+- **Progress Indicators**: Rich, tqdm
 - **Database**: SQLite
 - **Data Processing**: Pandas, Dask
 - **Machine Learning**: XGBoost, scikit-learn
 - **Logging**: Loguru
-- **Containerization**: Docker
+- **Dependency Management**: Poetry
 
 ### Project Structure
 ```
@@ -143,7 +145,7 @@ The system uses five main entities:
 
 **`bulk-process`** - Complete end-to-end processing pipeline
 ```bash
-python -m src.sbir_transition_classifier.cli.main bulk-process [OPTIONS]
+poetry run sbir-detect bulk-process [OPTIONS]
 
 Options:
   --data-dir PATH          Directory containing input data files [default: ./data]
@@ -155,25 +157,25 @@ Options:
 
 **`info`** - Display system and configuration information
 ```bash
-python -m src.sbir_transition_classifier.cli.main info
+poetry run sbir-detect info
 ```
 
 **`quick-stats`** - Show database statistics and summary metrics
 ```bash
-python -m src.sbir_transition_classifier.cli.main quick-stats
+poetry run sbir-detect quick-stats
 ```
 
 ### Data Scripts
 
 **Load SBIR Data:**
 ```bash
-python -m scripts.load_bulk_data load-sbir-data --file-path data/awards.csv --verbose
+poetry run python -m scripts.load_bulk_data load-sbir-data --file-path data/awards.csv --verbose
 ```
 
 **Export Results:**
 ```bash
-python -m scripts.export_data export-jsonl --output-path results.jsonl
-python -m scripts.export_data export-csv-summary --output-path summary.csv
+poetry run python -m scripts.export_data export-jsonl --output-path results.jsonl
+poetry run python -m scripts.export_data export-csv-summary --output-path summary.csv
 ```
 
 ## Development
@@ -183,9 +185,11 @@ python -m scripts.export_data export-csv-summary --output-path summary.csv
 # Install dependencies
 poetry install
 
-# Run in development mode
+# Activate virtual environment
 poetry shell
-python -m src.sbir_transition_classifier.cli.main --help
+
+# Run CLI commands directly
+sbir-detect --help
 ```
 
 ### Running Tests
@@ -203,13 +207,13 @@ poetry run pytest
 ### Development Workflow
 ```bash
 # Load sample data
-python -m scripts.load_bulk_data load-sbir-data --file-path data/sample_awards.csv
+poetry run python -m scripts.load_bulk_data load-sbir-data --file-path data/sample_awards.csv
 
 # Run detection on small dataset
-python -m src.sbir_transition_classifier.cli.main bulk-process --data-dir data/samples
+poetry run sbir-detect bulk-process --data-dir data/samples --verbose
 
 # Export and review results
-python -m scripts.export_data export-jsonl --output-path dev_results.jsonl
+poetry run python -m scripts.export_data export-jsonl --output-path dev_results.jsonl
 ```
 
 ## Performance
@@ -219,49 +223,58 @@ python -m scripts.export_data export-jsonl --output-path dev_results.jsonl
 - **Scale**: Processes 10-100GB yearly data files
 - **Memory Efficiency**: Streaming processing with configurable chunk sizes
 
+## Progress Indicators
+
+The CLI provides rich visual feedback during processing:
+
+- **File Discovery**: Shows detected CSV files and their sizes
+- **Database Operations**: Progress bars for initialization and data loading
+- **Detection Pipeline**: Real-time progress with time estimates
+- **Export Operations**: Status updates for result generation
+- **Summary Tables**: Formatted results with processing metrics
+
 ## Example Workflows
 
 ### Complete Processing Pipeline
 ```bash
-# 1. Start with fresh environment
-docker-compose up --build -d
-docker-compose exec sbir-classifier /bin/bash
+# 1. Setup environment
+poetry install
 
-# 2. Run complete pipeline with progress monitoring
-python -m src.sbir_transition_classifier.cli.main bulk-process \
-  --data-dir /app/data \
-  --output-dir /app/output \
+# 2. Run complete pipeline with rich progress indicators
+poetry run sbir-detect bulk-process \
+  --data-dir ./data \
+  --output-dir ./output \
   --export-format both \
   --verbose
 
 # 3. Check results
-ls -la /app/output/
+ls -la ./output/
 ```
 
 ### Manual Step-by-Step Processing
 ```bash
 # Load data with progress tracking
-python -m scripts.load_bulk_data load-sbir-data \
+poetry run python -m scripts.load_bulk_data load-sbir-data \
   --file-path data/awards.csv \
   --chunk-size 5000 \
   --verbose
 
 # Check system status
-python -m src.sbir_transition_classifier.cli.main quick-stats
+poetry run sbir-detect quick-stats
 
 # Export results in multiple formats
-python -m scripts.export_data export-jsonl --output-path detections.jsonl --verbose
-python -m scripts.export_data export-csv-summary --output-path summary.csv
+poetry run python -m scripts.export_data export-jsonl --output-path detections.jsonl --verbose
+poetry run python -m scripts.export_data export-csv-summary --output-path summary.csv
 ```
 
 ## Contributing
 
 1. Follow existing CLI patterns and command structure
-2. Add progress indicators for long-running operations
+2. Use rich progress indicators for long-running operations
 3. Include comprehensive logging and error handling
 4. Add tests for new functionality
 5. Update documentation and help text
-6. Ensure Docker builds succeed
+6. Ensure Poetry builds succeed
 
 ## License
 
@@ -273,17 +286,20 @@ python -m scripts.export_data export-csv-summary --output-path summary.csv
 
 **Most Common Commands:**
 ```bash
+# Quick setup
+python setup.py
+
 # Quick start (recommended)
-./scripts/sbir-detect bulk-process --verbose
+poetry run sbir-detect bulk-process --verbose
 
 # Manual data loading
-python -m scripts.load_bulk_data load-sbir-data --file-path data/awards.csv --verbose
+poetry run python -m scripts.load_bulk_data load-sbir-data --file-path data/awards.csv --verbose
 
 # Export results
-python -m scripts.export_data export-jsonl --output-path results.jsonl --verbose
+poetry run python -m scripts.export_data export-jsonl --output-path results.jsonl --verbose
 
 # System status
-./scripts/sbir-detect quick-stats
+poetry run sbir-detect quick-stats
 ```
 
 **File Organization:**
@@ -295,4 +311,4 @@ python -m scripts.export_data export-jsonl --output-path results.jsonl --verbose
 **Log Files:**
 - Bulk processing creates timestamped logs in output directory
 - Use `--verbose` flag for detailed progress tracking
-- Docker logs: `docker-compose logs sbir-classifier`
+- Rich progress bars show real-time status updates
