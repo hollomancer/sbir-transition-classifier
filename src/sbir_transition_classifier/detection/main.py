@@ -5,19 +5,82 @@ from . import heuristics, scoring
 from ..db.database import SessionLocal
 import datetime
 import uuid
+import json
+import multiprocessing as mp
+from typing import List, Dict, Any
+import os
+
+def process_award_chunk(award_ids: List[str]) -> List[Dict[str, Any]]:
+    """Process a chunk of award IDs and return detection data for bulk insert."""
+    db = SessionLocal()
+    detections_data = []
+    
+    try:
+        # Re-query awards in this process to avoid session issues
+        awards = db.query(models.SbirAward).filter(models.SbirAward.id.in_(award_ids)).all()
+        
+        for award in awards:
+            candidate_contracts = heuristics.find_candidate_contracts(db, award)
+            
+            for contract in candidate_contracts:
+                score = scoring.score_transition(award, contract)
+                confidence = scoring.get_confidence_level(score)
+
+                if score >= 0.2:
+                    signals = heuristics.get_confidence_signals(award, contract)
+                    text_signals = heuristics.get_text_based_signals(award, contract)
+                    
+                    # Get vendor name safely
+                    vendor_name = None
+                    if award.vendor_id:
+                        vendor = db.query(models.Vendor).filter(models.Vendor.id == award.vendor_id).first()
+                        vendor_name = vendor.name if vendor else None
+                    
+                    evidence = {
+                        "detection_id": str(uuid.uuid4()),
+                        "likelihood_score": score,
+                        "confidence": confidence,
+                        "reason_string": f"Transition detected with score {score:.3f}",
+                        "source_sbir_award": {
+                            "piid": award.award_piid,
+                            "agency": award.agency,
+                            "phase": award.phase,
+                            "completion_date": str(award.completion_date) if award.completion_date else None
+                        },
+                        "source_contract": {
+                            "piid": contract.piid,
+                            "agency": contract.agency,
+                            "start_date": str(contract.start_date) if contract.start_date else None,
+                            "competition_details": contract.competition_details
+                        },
+                        "signals": {**signals, **text_signals},
+                        "vendor_name": vendor_name
+                    }
+                    
+                    detection_data = {
+                        'sbir_award_id': award.id,
+                        'contract_id': contract.id,
+                        'likelihood_score': score,
+                        'confidence': confidence,
+                        'evidence_bundle': evidence,
+                        'detection_date': datetime.datetime.utcnow()
+                    }
+                    detections_data.append(detection_data)
+    
+    finally:
+        db.close()
+    
+    return detections_data
 
 def run_detection_for_award(db: Session, sbir_award: models.SbirAward):
-    """Runs the detection process for a single SBIR award."""
-    # Remove all logging during processing for clean UX
+    """Legacy function - kept for compatibility."""
     candidate_contracts = heuristics.find_candidate_contracts(db, sbir_award)
     
     for contract in candidate_contracts:
         score = scoring.score_transition(sbir_award, contract)
         confidence = scoring.get_confidence_level(score)
 
-        # Lowered threshold from 0.65 to 0.2 to capture more transitions
         if score >= 0.2:
-            # Enhanced evidence bundle
             signals = heuristics.get_confidence_signals(sbir_award, contract)
             text_signals = heuristics.get_text_based_signals(sbir_award, contract)
             
@@ -54,12 +117,13 @@ def run_detection_for_award(db: Session, sbir_award: models.SbirAward):
     db.commit()
 
 def run_full_detection():
-    """Runs the detection process for all Phase II SBIR awards."""
+    """Runs parallel detection with bulk database operations."""
     from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn
     from rich.console import Console
     
     console = Console()
-    db: Session = SessionLocal()
+    db = SessionLocal()
+    
     try:
         console.print("🔍 Analyzing Phase II awards...", style="bold blue")
         
@@ -77,6 +141,16 @@ def run_full_detection():
             
         console.print(f"📊 Found {total_awards:,} new awards to process", style="cyan")
         
+        # Determine optimal number of workers
+        num_workers = min(4, os.cpu_count() or 1, max(1, total_awards // 1000))
+        console.print(f"🚀 Using {num_workers} parallel workers", style="yellow")
+        
+        # Split award IDs into chunks for parallel processing
+        award_ids = [award.id for award in phase_ii_awards]
+        chunk_size = max(1, total_awards // num_workers)
+        award_id_chunks = [award_ids[i:i + chunk_size] 
+                          for i in range(0, len(award_ids), chunk_size)]
+        
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
@@ -85,27 +159,23 @@ def run_full_detection():
             TimeElapsedColumn(),
         ) as progress:
             
-            task = progress.add_task("🔍 Detecting transitions", total=total_awards)
+            task = progress.add_task("🔍 Detecting transitions", total=len(award_id_chunks))
             
-            new_detections = 0
-            for i, award in enumerate(phase_ii_awards, 1):
-                # Count detections before processing
-                before_count = db.query(models.Detection).count()
-                
-                run_detection_for_award(db, award)
-                
-                # Count detections after processing
-                after_count = db.query(models.Detection).count()
-                new_detections += (after_count - before_count)
-                
-                if i % 50 == 0:
-                    db.commit()
-                
-                progress.update(task, advance=1)
+            all_detections = []
+            
+            # Process chunks in parallel
+            with mp.Pool(num_workers) as pool:
+                for chunk_results in pool.imap(process_award_chunk, award_id_chunks):
+                    all_detections.extend(chunk_results)
+                    progress.update(task, advance=1)
         
-        # Final commit
-        db.commit()
-        console.print(f"✅ Detection complete. Found {new_detections} new transitions.", style="green bold")
+        # Bulk insert all detections
+        if all_detections:
+            console.print(f"💾 Bulk inserting {len(all_detections)} detections...", style="cyan")
+            db.bulk_insert_mappings(models.Detection, all_detections)
+            db.commit()
+        
+        console.print(f"✅ Detection complete. Found {len(all_detections)} new transitions.", style="green bold")
         
     finally:
         db.close()

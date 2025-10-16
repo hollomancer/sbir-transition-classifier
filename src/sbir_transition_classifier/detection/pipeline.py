@@ -34,7 +34,7 @@ class ConfigurableDetectionPipeline:
         detections = []
         
         # Filter to Phase II awards only
-        phase2_awards = [a for a in sbir_awards if str(a.get('phase', '')).upper() == 'II']
+        phase2_awards = [a for a in sbir_awards if 'II' in str(a.get('phase', '')).upper()]
         logger.info(f"Processing {len(phase2_awards)} Phase II awards")
         
         for award in phase2_awards:

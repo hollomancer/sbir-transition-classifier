@@ -3,6 +3,8 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 import pandas as pd
+import hashlib
+import uuid
 import dask.dataframe as dd
 import click
 from sqlalchemy.orm import Session
@@ -72,8 +74,12 @@ def load_sbir_data(file_path, chunk_size, verbose):
         # Read CSV with Dask
         read_task = progress.add_task("📁 Reading CSV file...", total=1)
         logger.info(f"Reading CSV with Dask (chunk size: {chunk_size})")
-        ddf = dd.read_csv(file_path)
-        total_rows = len(ddf)
+        try:
+            ddf = dd.read_csv(file_path, dtype=str, on_bad_lines='skip')
+            total_rows = len(ddf)
+        except Exception as e:
+            console.print(f"[red]Error reading CSV: {e}[/red]")
+            return
         progress.update(read_task, advance=1)
         logger.info(f"Total rows to process: {total_rows:,}")
         
@@ -213,10 +219,117 @@ def load_sbir_data(file_path, chunk_size, verbose):
             console.print(f"[yellow]⚠️  {errors} rows had errors and were skipped. Use --verbose for details.[/yellow]")
 
 @cli.command()
-def load_usaspending_data():
-    """Placeholder for loading USAspending data."""
+@click.option('--file-path', required=True, help='Path to the USAspending CSV file.')
+@click.option('--chunk-size', default=50000, help='Number of records to process in each batch.')
+@click.option('--verbose', '-v', is_flag=True, help='Enable verbose logging')
+def load_usaspending_data(file_path, chunk_size, verbose):
+    """Load USAspending contract data from CSV file."""
     console = Console()
-    console.print("[yellow]USAspending data loading is not yet implemented.[/yellow]")
+    
+    if verbose:
+        logger.remove()
+        logger.add(lambda msg: console.print(msg, style="dim"), level="DEBUG")
+    
+    file_path = Path(file_path)
+    if not file_path.exists():
+        console.print(f"[red]Error: File {file_path} not found.[/red]")
+        return
+    
+    console.print(f"📥 Loading USAspending data from {file_path.name}")
+    
+    db = SessionLocal()
+    try:
+        # Read CSV in large chunks with minimal validation
+        total_processed = 0
+        skipped_rows = 0
+        failed_records = 0
+        
+        for chunk_df in pd.read_csv(file_path, chunksize=chunk_size, low_memory=False, dtype=str, on_bad_lines='skip'):
+            # Process each chunk
+            for _, row in chunk_df.iterrows():
+                try:
+                    # Skip rows with missing critical data
+                    piid = str(row.get('award_id_piid', '')).strip()
+                    if not piid or piid.lower() in ['nan', 'null', '']:
+                        skipped_rows += 1
+                        continue
+                        
+                    agency = str(row.get('awarding_agency_name', '')).strip()
+                    if not agency or agency.lower() in ['nan', 'null', '']:
+                        skipped_rows += 1
+                        continue
+                    
+                    # Create unique key from PIID + modification number + transaction number
+                    mod_number = str(row.get('modification_number', '0')).strip()
+                    trans_number = str(row.get('transaction_number', '0')).strip()
+                    unique_piid = f"{piid}_{mod_number}_{trans_number}"
+                    
+                    # Handle NaN values in start_date
+                    start_date_raw = row.get('period_of_performance_start_date')
+                    if pd.isna(start_date_raw) or str(start_date_raw).lower() in ['nan', 'null', '']:
+                        start_date = None
+                    else:
+                        start_date = pd.to_datetime(start_date_raw, errors='coerce')
+                    
+                    # Generate unique ID and map fields
+                    contract_data = {
+                        'id': uuid.uuid4(),
+                        'piid': unique_piid,
+                        'agency': agency,
+                        'start_date': start_date,
+                        'competition_details': {
+                            'extent_competed': str(row.get('extent_competed', '')),
+                            'type_of_contract_pricing': str(row.get('type_of_contract_pricing', ''))
+                        }
+                    }
+                    
+                    all_contract_data.append(contract_data)
+                    
+                except Exception as e:
+                    if verbose:
+                        logger.warning(f"Error processing row: {e}")
+                    skipped_rows += 1
+                    continue
+            
+            total_processed += len(chunk_df)
+            if total_processed % 500000 == 0:  # Only show every 500k records
+                console.print(f"Processed {total_processed:,} records...")
+        
+        # Single bulk insert for entire file with duplicate handling
+        if all_contract_data:
+            try:
+                db.bulk_insert_mappings(models.Contract, all_contract_data)
+                db.commit()
+                console.print(f"✅ Successfully loaded {len(all_contract_data):,} contracts")
+                if skipped_rows > 0:
+                    console.print(f"⚠️  Skipped {skipped_rows:,} rows with missing data")
+            except Exception as e:
+                if "UNIQUE constraint failed" in str(e):
+                    db.rollback()
+                    inserted = 0
+                    for contract in all_contract_data:
+                        try:
+                            existing = db.query(models.Contract).filter_by(piid=contract['piid']).first()
+                            if not existing:
+                                db.add(models.Contract(**contract))
+                                inserted += 1
+                        except Exception as record_error:
+                            failed_records += 1
+                            if verbose and failed_records <= 10:
+                                logger.warning(f"Failed to insert record: {record_error}")
+                            continue
+                    db.commit()
+                    console.print(f"✅ Successfully loaded {inserted:,} new contracts")
+                else:
+                    raise
+        
+        console.print(f"✅ Successfully loaded {len(all_contract_data):,} contracts")
+        
+    except Exception as e:
+        console.print(f"[red]Error loading data: {e}[/red]")
+        db.rollback()
+    finally:
+        db.close()
 
 if __name__ == '__main__':
     cli()

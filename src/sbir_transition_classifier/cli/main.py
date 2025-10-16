@@ -12,6 +12,7 @@ from .validate import validate_config
 from .reset import reset_config, list_templates, show_template
 from .evidence import view_evidence, list_evidence, evidence_report
 from .summary import generate_summary, quick_stats
+from .hygiene import hygiene
 
 
 @click.group()
@@ -42,6 +43,7 @@ main.add_command(list_evidence, name="list-evidence")
 main.add_command(evidence_report, name="evidence-report")
 main.add_command(generate_summary, name="generate-summary")
 main.add_command(quick_stats, name="quick-stats")
+main.add_command(hygiene)
 
 
 @main.command()

@@ -13,6 +13,19 @@ from rich.table import Table
 
 from ..db.database import SessionLocal
 from ..detection.main import run_full_detection
+from ..data.hygiene import create_sample_files_robust
+
+def load_csv_file(csv_file_info):
+    """Load a single CSV file."""
+    csv_file_path, data_dir_parent = csv_file_info
+    import subprocess
+    result = subprocess.run([
+        'python', '-m', 'scripts.load_bulk_data', 'load-usaspending-data',
+        '--file-path', str(csv_file_path),
+        '--chunk-size', '50000',
+        '--verbose'
+    ], cwd=str(data_dir_parent), capture_output=False, text=True)
+    return csv_file_path.name, result.returncode
 
 
 @click.command()
@@ -50,13 +63,19 @@ from ..detection.main import run_full_detection
     default='both',
     help='Export format for results'
 )
+@click.option('--use-samples', is_flag=True, help='Use sample files created by hygiene system')
+@click.option('--create-samples', is_flag=True, help='Create sample files before processing')
+@click.option('--sample-size', type=int, default=1000, help='Sample size when creating samples')
 def bulk_process(
     data_dir: Path,
     output_dir: Path, 
     chunk_size: int,
     verbose: bool,
     quiet: bool,
-    export_format: str
+    export_format: str,
+    use_samples: bool,
+    create_samples: bool,
+    sample_size: int
 ):
     """Run bulk SBIR transition detection on all available data."""
     
@@ -119,6 +138,58 @@ def bulk_process(
         console.print(files_table)
         console.print()
         
+        # Initialize database connection
+        from ..core import models
+        from ..db.database import SessionLocal
+        db = SessionLocal()
+        
+        # Phase 1: Load CSV Data if needed
+        contract_count = db.query(models.Contract).count()
+        if contract_count == 0:
+            console.print("[bold blue]🔍 Phase 1: Loading CSV data...[/bold blue]")
+            
+            # Load contract data from CSV files
+            csv_files = [f for f in data_dir.glob("*.csv") if f.name != "award_data.csv"]
+            if csv_files:
+                console.print(f"📊 Found {len(csv_files)} contract CSV files to load", style="cyan")
+                
+                # Determine number of parallel workers
+                import os
+                num_workers = min(4, os.cpu_count() or 1, len(csv_files))
+                console.print(f"🚀 Using {num_workers} parallel CSV loaders", style="yellow")
+                
+                import multiprocessing as mp
+                
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    BarColumn(),
+                    TaskProgressColumn(),
+                    TimeElapsedColumn(),
+                ) as progress:
+                    
+                    load_task = progress.add_task("📥 Loading contract data", total=len(csv_files))
+                    
+                    # Prepare file info for multiprocessing
+                    csv_file_info = [(csv_file, data_dir.parent) for csv_file in csv_files]
+                    
+                    # Process CSV files in parallel
+                    with mp.Pool(num_workers) as pool:
+                        for filename, return_code in pool.imap(load_csv_file, csv_file_info):
+                            current_count = db.query(models.Contract).count()
+                            console.print(f"  📊 {filename}: {current_count:,} total contracts loaded", style="dim")
+                            progress.update(load_task, advance=1)
+                
+                # Check final contract count
+                final_contract_count = db.query(models.Contract).count()
+                console.print(f"✅ Loaded {final_contract_count:,} contracts from CSV files", style="green")
+            else:
+                console.print("⚠️  No contract CSV files found", style="yellow")
+        else:
+            console.print(f"✅ Database already contains {contract_count:,} contracts", style="green")
+        
+        console.print()
+        
         # Phase 1: Data Loading with progress
         with Progress(
             SpinnerColumn(),
@@ -165,7 +236,7 @@ def bulk_process(
         console.print()
         
         # Phase 2: Detection Processing with progress
-        console.print("[bold green]🔍 Phase 2: Running detection pipeline...[/bold green]")
+        console.print("[bold green]🔍 Phase 3: Running detection pipeline...[/bold green]")
         detection_start = time.time()
         
         with Progress(
@@ -189,7 +260,7 @@ def bulk_process(
         detection_time = time.time() - detection_start
         
         # Phase 3: Export Results with progress
-        console.print("[bold green]📤 Phase 3: Exporting results...[/bold green]")
+        console.print("[bold green]📤 Phase 4: Exporting results...[/bold green]")
         export_start = time.time()
         
         with Progress(
