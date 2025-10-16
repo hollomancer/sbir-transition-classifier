@@ -15,7 +15,25 @@ def get_default_scorer():
     """Get default scorer instance."""
     global _default_scorer
     if _default_scorer is None:
-        config = ConfigSchema()  # Use default values
+        # Load configuration from YAML file
+        import yaml
+        from pathlib import Path
+        
+        config_path = Path(__file__).parent.parent.parent.parent / 'config' / 'classification.yaml'
+        if config_path.exists():
+            with open(config_path, 'r') as f:
+                yaml_config = yaml.safe_load(f)
+            
+            # Create ConfigSchema with YAML values
+            config = ConfigSchema()
+            # Update thresholds from YAML
+            if 'detection' in yaml_config and 'thresholds' in yaml_config['detection']:
+                thresholds = yaml_config['detection']['thresholds']
+                config.detection.thresholds.high_confidence = thresholds.get('high_confidence', 0.85)
+                config.detection.thresholds.likely_transition = thresholds.get('likely_transition', 0.65)
+        else:
+            config = ConfigSchema()  # Use default values as fallback
+            
         _default_scorer = ConfigurableScorer(config)
     return _default_scorer
 

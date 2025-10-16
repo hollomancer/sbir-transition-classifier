@@ -5,8 +5,8 @@
 detection:
   # Score thresholds for classification
   thresholds:
-    high_confidence: 0.85      # Minimum score for high-confidence detection
-    likely_transition: 0.65    # Minimum score for likely transition detection
+    high_confidence: 0.55      # Minimum score for high-confidence detection
+    likely_transition: 0.40    # Minimum score for likely transition detection
   
   # Feature weights for scoring algorithm
   weights:
@@ -23,7 +23,7 @@ detection:
   
   # Timing constraints for detection
   timing:
-    max_months_after_award: 24        # Maximum months after award start to search
+    max_months_after_award: 999999    # Infinite months after award start to search
     min_months_after_award: 0         # Minimum months after award start to search
     
 # Candidate Selection Criteria
