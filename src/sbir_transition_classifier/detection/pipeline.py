@@ -33,11 +33,16 @@ class ConfigurableDetectionPipeline:
         
         detections = []
         
-        # Filter to Phase II awards only
-        phase2_awards = [a for a in sbir_awards if 'II' in str(a.get('phase', '')).upper()]
-        logger.info(f"Processing {len(phase2_awards)} Phase II awards")
+        # Load config to get eligible phases
+        from ..detection.heuristics import load_config
+        config = load_config()
+        eligible_phases = config['candidate_selection']['eligible_phases']
         
-        for award in phase2_awards:
+        # Filter to eligible phases from config
+        eligible_awards = [a for a in sbir_awards if a.get('phase', '') in eligible_phases]
+        logger.info(f"Processing {len(eligible_awards)} awards from phases: {', '.join(eligible_phases)}")
+        
+        for award in eligible_awards:
             award_detections = self._process_award(award, contracts)
             detections.extend(award_detections)
         

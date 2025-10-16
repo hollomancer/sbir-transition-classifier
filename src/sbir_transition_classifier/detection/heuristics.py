@@ -1,21 +1,40 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from datetime import timedelta
+import yaml
+import os
+from pathlib import Path
 from ..core import models
+
+# Load configuration from YAML with robust path resolution
+def load_config():
+    # Get the project root directory (4 levels up from this file)
+    current_file = Path(__file__)
+    project_root = current_file.parent.parent.parent.parent
+    config_path = project_root / 'config' / 'classification.yaml'
+    
+    if not config_path.exists():
+        # Fallback to relative path
+        config_path = Path('config/classification.yaml')
+    
+    with open(config_path, 'r') as f:
+        return yaml.safe_load(f)
+
+_config = load_config()
 
 def find_candidate_contracts(db: Session, sbir_award: models.SbirAward):
     """
-    Finds contract vehicles that were awarded to the same vendor within 24 months
-    after the completion of a given SBIR Phase II award.
+    Finds contract vehicles that were awarded to the same vendor within the configured time window
+    after the start of a given SBIR Phase I or Phase II award.
     """
-    if sbir_award.phase != 'Phase II':
+    if sbir_award.phase not in _config['candidate_selection']['eligible_phases']:
         return []
 
-    if not sbir_award.completion_date:
+    if not sbir_award.award_date:
         return []
 
-    start_window = sbir_award.completion_date
-    end_window = start_window + timedelta(days=24 * 30) # Approximate 24 months
+    start_window = sbir_award.award_date
+    end_window = start_window + timedelta(days=_config['candidate_selection']['search_window_days'])
 
     candidates = (
         db.query(models.Contract)

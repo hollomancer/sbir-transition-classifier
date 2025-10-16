@@ -8,6 +8,7 @@ from rich.table import Table
 
 from .run import run
 from .bulk import bulk_process
+from .dual_report import dual_report
 from .validate import validate_config
 from .reset import reset_config, list_templates, show_template
 from .evidence import view_evidence, list_evidence, evidence_report
@@ -34,6 +35,7 @@ def main(verbose: bool):
 # Add subcommands
 main.add_command(run)
 main.add_command(bulk_process, name="bulk-process")
+main.add_command(dual_report, name="dual-report")
 main.add_command(validate_config, name="validate-config")
 main.add_command(reset_config, name="reset-config")
 main.add_command(list_templates, name="list-templates")

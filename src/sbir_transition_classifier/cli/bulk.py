@@ -144,45 +144,145 @@ def bulk_process(
         db = SessionLocal()
         
         # Phase 1: Load CSV Data if needed
+        award_count = db.query(models.SbirAward).count()
         contract_count = db.query(models.Contract).count()
+        
+        # Load SBIR awards first if needed
+        if award_count == 0:
+            award_file = data_dir / "award_data.csv"
+            if award_file.exists():
+                console.print("[bold blue]🔍 Phase 1a: Loading SBIR awards...[/bold blue]")
+                console.print(f"📊 Loading SBIR data from {award_file.name}", style="cyan")
+                
+                try:
+                    # Use new ingestion layer
+                    from ..ingestion import SbirIngester
+                    ingester = SbirIngester(console=console, verbose=verbose)
+                    stats = ingester.ingest(award_file, chunk_size=chunk_size)
+                    
+                    console.print(f"✅ SBIR ingestion complete: {stats.valid_records:,} awards loaded "
+                                f"({stats.retention_rate:.1f}% retention)", style="green")
+                    
+                except Exception as e:
+                    console.print(f"❌ Error loading SBIR awards: {e}", style="red")
+                    return
+            else:
+                console.print("⚠️  No award_data.csv found, skipping SBIR loading", style="yellow")
+        
+        # Load contract data if needed
         if contract_count == 0:
-            console.print("[bold blue]🔍 Phase 1: Loading CSV data...[/bold blue]")
+            console.print("[bold blue]🔍 Phase 1b: Loading contract data...[/bold blue]")
             
             # Load contract data from CSV files
             csv_files = [f for f in data_dir.glob("*.csv") if f.name != "award_data.csv"]
             if csv_files:
                 console.print(f"📊 Found {len(csv_files)} contract CSV files to load", style="cyan")
                 
-                # Determine number of parallel workers
-                import os
-                num_workers = min(4, os.cpu_count() or 1, len(csv_files))
-                console.print(f"🚀 Using {num_workers} parallel CSV loaders", style="yellow")
+                # Show file inventory with sizes
+                files_table = Table(title="📁 Contract Files to Process")
+                files_table.add_column("File", style="cyan")
+                files_table.add_column("Size", justify="right", style="green")
+                files_table.add_column("Status", style="yellow")
                 
-                import multiprocessing as mp
+                total_size_mb = 0
+                for file in csv_files:
+                    file_size = file.stat().st_size / (1024 * 1024)  # MB
+                    total_size_mb += file_size
+                    files_table.add_row(file.name, f"{file_size:.1f} MB", "Pending")
                 
+                files_table.add_row("[bold]Total", f"[bold]{total_size_mb:.1f} MB", "")
+                console.print(files_table)
+                console.print()
+                
+                # Process files sequentially with detailed progress
                 with Progress(
                     SpinnerColumn(),
                     TextColumn("[progress.description]{task.description}"),
                     BarColumn(),
                     TaskProgressColumn(),
                     TimeElapsedColumn(),
+                    console=console
                 ) as progress:
                     
-                    load_task = progress.add_task("📥 Loading contract data", total=len(csv_files))
+                    overall_task = progress.add_task("📥 Loading all contract files", total=len(csv_files))
                     
-                    # Prepare file info for multiprocessing
-                    csv_file_info = [(csv_file, data_dir.parent) for csv_file in csv_files]
+                    # Track cumulative statistics across all files
+                    cumulative_stats = {
+                        'total_files': len(csv_files),
+                        'files_processed': 0,
+                        'total_rows': 0,
+                        'total_contracts': 0,
+                        'total_vendors': 0,
+                        'total_rejected': 0,
+                        'processing_time': 0
+                    }
                     
-                    # Process CSV files in parallel
-                    with mp.Pool(num_workers) as pool:
-                        for filename, return_code in pool.imap(load_csv_file, csv_file_info):
-                            current_count = db.query(models.Contract).count()
-                            console.print(f"  📊 {filename}: {current_count:,} total contracts loaded", style="dim")
-                            progress.update(load_task, advance=1)
+                    for i, csv_file in enumerate(csv_files, 1):
+                        file_start_time = time.time()
+                        
+                        # Update progress description
+                        progress.update(overall_task, description=f"📥 Loading {csv_file.name} ({i}/{len(csv_files)})")
+                        
+                        console.print(f"\n[bold cyan]Processing file {i}/{len(csv_files)}: {csv_file.name}[/bold cyan]")
+                        
+                        try:
+                            # Use new ingestion layer
+                            from ..ingestion import ContractIngester
+                            ingester = ContractIngester(console=console, verbose=verbose)
+                            
+                            # Get contract count before loading
+                            contracts_before = db.query(models.Contract).count()
+                            
+                            # Ingest using new layer
+                            stats = ingester.ingest(csv_file, chunk_size=chunk_size)
+                            
+                            # Get contract count after loading
+                            contracts_after = db.query(models.Contract).count()
+                            new_contracts = contracts_after - contracts_before
+                            
+                            file_time = time.time() - file_start_time
+                            
+                            # Update cumulative stats
+                            cumulative_stats['files_processed'] += 1
+                            cumulative_stats['total_contracts'] += new_contracts
+                            cumulative_stats['processing_time'] += file_time
+                            
+                            # Show file completion summary
+                            console.print(f"  ✅ {csv_file.name}: {new_contracts:,} contracts loaded "
+                                        f"({stats.retention_rate:.1f}% retention) in {file_time:.1f}s", style="green")
+                            
+                        except Exception as e:
+                            console.print(f"  ❌ {csv_file.name}: Error - {e}", style="red")
+                        
+                        progress.update(overall_task, advance=1)
+                        
+                        # Show cumulative progress every few files
+                        if i % 2 == 0 or i == len(csv_files):
+                            console.print(f"[dim]Progress: {cumulative_stats['files_processed']}/{cumulative_stats['total_files']} files, "
+                                        f"{cumulative_stats['total_contracts']:,} total contracts loaded[/dim]")
                 
-                # Check final contract count
+                # Final contract loading summary
                 final_contract_count = db.query(models.Contract).count()
-                console.print(f"✅ Loaded {final_contract_count:,} contracts from CSV files", style="green")
+                console.print()
+                console.print(Panel.fit(
+                    f"[bold green]✅ Contract Loading Complete![/bold green]\n"
+                    f"[dim]Loaded {final_contract_count:,} contracts from {len(csv_files)} files in {cumulative_stats['processing_time']:.1f}s[/dim]",
+                    border_style="green"
+                ))
+                
+                # Contract loading summary table
+                loading_table = Table(title="📊 Multi-File Loading Summary")
+                loading_table.add_column("Metric", style="cyan")
+                loading_table.add_column("Value", justify="right", style="green")
+                loading_table.add_row("Files processed", f"{cumulative_stats['files_processed']}/{cumulative_stats['total_files']}")
+                loading_table.add_row("Total contracts loaded", f"{final_contract_count:,}")
+                loading_table.add_row("Total processing time", f"{cumulative_stats['processing_time']:.1f}s")
+                loading_table.add_row("Average per file", f"{cumulative_stats['processing_time']/len(csv_files):.1f}s")
+                if cumulative_stats['processing_time'] > 0:
+                    loading_table.add_row("Loading rate", f"{final_contract_count/cumulative_stats['processing_time']:.0f} contracts/sec")
+                
+                console.print(loading_table)
+                
             else:
                 console.print("⚠️  No contract CSV files found", style="yellow")
         else:
@@ -259,7 +359,7 @@ def bulk_process(
         
         detection_time = time.time() - detection_start
         
-        # Phase 3: Export Results with progress
+        # Phase 4: Export Results with progress
         console.print("[bold green]📤 Phase 4: Exporting results...[/bold green]")
         export_start = time.time()
         
@@ -315,6 +415,26 @@ def bulk_process(
                 progress.update(csv_task, advance=1)
         
         export_time = time.time() - export_start
+        
+        # Phase 5: Generate Transition Statistics Overview
+        console.print("[bold blue]📊 Phase 5: Generating transition statistics...[/bold blue]")
+        stats_start = time.time()
+        
+        try:
+            from ..analysis import generate_transition_overview, analyze_transition_perspectives
+            
+            # Overall statistics
+            transition_stats = generate_transition_overview(console=console)
+            
+            # Dual-perspective analysis
+            perspective_stats = analyze_transition_perspectives(console=console)
+            
+        except Exception as e:
+            console.print(f"[yellow]⚠️ Statistics generation failed: {e}[/yellow]")
+            transition_stats = None
+            perspective_stats = None
+        
+        stats_time = time.time() - stats_start
         total_time = time.time() - start_time
         
         # Final summary with rich formatting
@@ -332,6 +452,7 @@ def bulk_process(
         results_table.add_row("Total detections in DB", f"{final_detections:,}")
         results_table.add_row("Detection processing time", f"{detection_time:.1f}s")
         results_table.add_row("Export time", f"{export_time:.1f}s")
+        results_table.add_row("Statistics generation time", f"{stats_time:.1f}s")
         results_table.add_row("Total processing time", f"{total_time:.1f}s")
         
         if new_detections > 0:

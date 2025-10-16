@@ -125,18 +125,23 @@ def run_full_detection():
     db = SessionLocal()
     
     try:
-        console.print("🔍 Analyzing Phase II awards...", style="bold blue")
+        # Load config to get eligible phases
+        from .heuristics import load_config
+        config = load_config()
+        eligible_phases = config['candidate_selection']['eligible_phases']
+        
+        console.print(f"🔍 Analyzing {', '.join(eligible_phases)} awards...", style="bold blue")
         
         # Get awards that don't already have detections
         subquery = db.query(models.Detection.sbir_award_id).distinct()
-        phase_ii_awards = (db.query(models.SbirAward)
-                          .filter(models.SbirAward.phase == 'Phase II')
+        eligible_awards = (db.query(models.SbirAward)
+                          .filter(models.SbirAward.phase.in_(eligible_phases))
                           .filter(~models.SbirAward.id.in_(subquery))
                           .all())
         
-        total_awards = len(phase_ii_awards)
+        total_awards = len(eligible_awards)
         if total_awards == 0:
-            console.print("✅ All Phase II awards already processed.", style="green")
+            console.print(f"✅ All {', '.join(eligible_phases)} awards already processed.", style="green")
             return
             
         console.print(f"📊 Found {total_awards:,} new awards to process", style="cyan")
@@ -146,7 +151,7 @@ def run_full_detection():
         console.print(f"🚀 Using {num_workers} parallel workers", style="yellow")
         
         # Split award IDs into chunks for parallel processing
-        award_ids = [award.id for award in phase_ii_awards]
+        award_ids = [award.id for award in eligible_awards]
         chunk_size = max(1, total_awards // num_workers)
         award_id_chunks = [award_ids[i:i + chunk_size] 
                           for i in range(0, len(award_ids), chunk_size)]

@@ -182,7 +182,8 @@ class LocalDataLoader:
         
         # Clean phase values - extract just the phase number/name
         if 'phase' in df.columns:
-            df['phase'] = df['phase'].astype(str).str.replace('Phase ', '', regex=False).str.strip()
+            # Handle NaN values properly before string operations
+            df['phase'] = df['phase'].fillna('').astype(str).str.replace('Phase ', '', regex=False).str.strip()
         
         return df
     

@@ -1,0 +1,88 @@
+# SBIR Transition Classification Configuration
+# This file contains all parameters for the detection and scoring algorithms
+
+# Detection Algorithm Configuration
+detection:
+  # Score thresholds for classification
+  thresholds:
+    high_confidence: 0.85      # Minimum score for high-confidence detection
+    likely_transition: 0.65    # Minimum score for likely transition detection
+  
+  # Feature weights for scoring algorithm
+  weights:
+    sole_source_bonus: 0.2     # Additional weight for sole-source contracts
+    timing_weight: 0.15        # Weight for timing proximity to award start
+    agency_continuity: 0.25    # Weight for same agency/service continuation
+    text_similarity: 0.1       # Weight for description text similarity
+  
+  # Feature toggle flags
+  features:
+    enable_cross_service: true        # Include cross-service transitions
+    enable_text_analysis: false       # Use text similarity analysis
+    enable_competed_contracts: true   # Include competed contracts
+  
+  # Timing constraints for detection
+  timing:
+    max_months_after_award: 24        # Maximum months after award start to search
+    min_months_after_award: 0         # Minimum months after award start to search
+    
+# Candidate Selection Criteria
+candidate_selection:
+  # Eligible SBIR phases
+  eligible_phases:
+    - "Phase I"
+    - "Phase II"
+  
+  # Time window for contract search (in days)
+  search_window_days: 720  # 24 months * 30 days
+  
+  # Base scoring parameters
+  base_score: 0.2  # Base score for any potential match
+
+# Competition Type Scoring
+competition:
+  # Sole source indicators
+  sole_source_keywords:
+    - "SOLE SOURCE"
+    - "NOT COMPETED"
+    - "BRAND NAME OR EQUAL"
+  
+  # Competition penalty multiplier (when competed contracts disabled)
+  competed_penalty: 0.3
+
+# Agency Matching Configuration
+agency_matching:
+  # Cross-service reduction factor
+  cross_service_factor: 0.5
+  
+  # Department mappings for enhanced matching
+  department_mappings:
+    "Department of Defense": ["DOD", "DEFENSE", "ARMY", "NAVY", "AIR FORCE"]
+    "Department of Health and Human Services": ["HHS", "HEALTH", "NIH", "CDC"]
+    "National Aeronautics and Space Administration": ["NASA", "SPACE"]
+    "Department of Energy": ["DOE", "ENERGY"]
+    "National Science Foundation": ["NSF"]
+
+# Text Analysis Configuration (when enabled)
+text_analysis:
+  # Minimum similarity threshold
+  min_similarity: 0.3
+  
+  # Keywords that boost similarity scores
+  sbir_keywords:
+    - "SBIR"
+    - "SMALL BUSINESS"
+    - "INNOVATION"
+    - "RESEARCH"
+    - "DEVELOPMENT"
+
+# Output Configuration
+output:
+  formats:
+    - "jsonl"
+    - "csv"
+  include_evidence: true
+  evidence_detail_level: "full"
+
+# Schema version for configuration compatibility
+schema_version: "1.0.0"
