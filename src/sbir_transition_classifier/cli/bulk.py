@@ -144,11 +144,11 @@ def bulk_process(
         db = SessionLocal()
         
         # Phase 1: Load CSV Data if needed
-        award_count = db.query(models.SbirAward).count()
-        contract_count = db.query(models.Contract).count()
+        award_exists = db.query(models.SbirAward.id).limit(1).first()
+        contract_exists = db.query(models.Contract.id).limit(1).first()
         
         # Load SBIR awards first if needed
-        if award_count == 0:
+        if not award_exists:
             award_file = data_dir / "award_data.csv"
             if award_file.exists():
                 console.print("[bold blue]🔍 Phase 1a: Loading SBIR awards...[/bold blue]")
@@ -168,9 +168,21 @@ def bulk_process(
                     return
             else:
                 console.print("⚠️  No award_data.csv found, skipping SBIR loading", style="yellow")
+        else:
+            latest_award_meta = (
+                db.query(models.SbirAward.phase, models.SbirAward.created_at)
+                .order_by(models.SbirAward.created_at.desc())
+                .first()
+            )
+            latest_phase, created_at = (latest_award_meta if latest_award_meta else (None, None))
+            latest_phase = latest_phase or "unknown phase"
+            created_display = created_at.isoformat() if created_at else "unknown time"
+            console.print(
+                f"[dim]⏭️  SBIR awards already present (latest record: {latest_phase} at {created_display}). Skipping Phase 1a.[/dim]"
+            )
         
         # Load contract data if needed
-        if contract_count == 0:
+        if not contract_exists:
             console.print("[bold blue]🔍 Phase 1b: Loading contract data...[/bold blue]")
             
             # Load contract data from CSV files
@@ -286,7 +298,17 @@ def bulk_process(
             else:
                 console.print("⚠️  No contract CSV files found", style="yellow")
         else:
-            console.print(f"✅ Database already contains {contract_count:,} contracts", style="green")
+            latest_contract_meta = (
+                db.query(models.Contract.agency, models.Contract.created_at)
+                .order_by(models.Contract.created_at.desc())
+                .first()
+            )
+            latest_agency, contract_created_at = (latest_contract_meta if latest_contract_meta else (None, None))
+            latest_agency = (latest_agency or "unknown agency")
+            contract_created_display = contract_created_at.isoformat() if contract_created_at else "unknown time"
+            console.print(
+                f"[dim]⏭️  Contract records already present (latest agency: {latest_agency} at {contract_created_display}). Skipping Phase 1b.[/dim]"
+            )
         
         console.print()
         
@@ -479,6 +501,8 @@ def bulk_process(
         console.print(f"\n[dim]📋 Full processing log: {log_file}[/dim]")
         
     except Exception as e:
+        import traceback
         logger.error(f"Bulk processing failed: {e}")
+        logger.error(f"Full traceback: {traceback.format_exc()}")
         console.print(f"\n[red]❌ Bulk processing failed: {e}[/red]")
         raise click.ClickException(str(e))

@@ -1,5 +1,6 @@
 """SBIR award data ingester."""
 
+from collections import defaultdict
 import time
 from pathlib import Path
 import pandas as pd
@@ -49,15 +50,18 @@ class SbirIngester(BaseIngester):
         db = SessionLocal()
         try:
             # Clear existing data to prevent duplicates from multiple loads
-            existing_count = db.query(models.SbirAward).count()
-            if existing_count > 0:
-                self.log_progress(f"Found {existing_count:,} existing SBIR awards - checking for duplicates")
+            existing_record = db.query(models.SbirAward.id).limit(1).first()
+            if existing_record:
+                self.log_progress("Existing SBIR awards detected - checking for duplicates")
             
             self._bulk_insert_vendors(db, valid_df)
-            inserted_count = self._bulk_insert_awards_deduplicated(db, valid_df)
+            inserted_count, duplicates_skipped = self._bulk_insert_awards_deduplicated(db, valid_df)
             db.commit()
             
             self.stats.valid_records = inserted_count
+            self.stats.duplicates_skipped = duplicates_skipped
+            if duplicates_skipped:
+                self.stats.rejection_reasons['duplicates_skipped'] = duplicates_skipped
             
         finally:
             db.close()
@@ -101,9 +105,11 @@ class SbirIngester(BaseIngester):
     def _bulk_insert_vendors(self, db: Session, df: pd.DataFrame):
         """Bulk insert vendors."""
         vendor_names = df['Company'].str.strip().unique()
-        existing_vendors = {v.name: v.id for v in db.query(models.Vendor).filter(
+        existing_vendor_records = db.query(models.Vendor).filter(
             models.Vendor.name.in_(vendor_names)
-        ).all()}
+        ).all()
+        existing_vendors = {v.name: v.id for v in existing_vendor_records}
+        self._existing_vendor_ids = {v.id for v in existing_vendor_records}
         
         new_vendor_names = [name for name in vendor_names if name not in existing_vendors]
         if new_vendor_names:
@@ -120,22 +126,40 @@ class SbirIngester(BaseIngester):
         # Store vendor mapping for awards
         self._vendor_map = existing_vendors
     
-    def _bulk_insert_awards_deduplicated(self, db: Session, df: pd.DataFrame) -> int:
+    def _load_existing_award_index(self, db: Session) -> dict:
+        """Build an index of existing awards keyed by vendor for deduplication."""
+        award_index = defaultdict(set)
+        existing_vendor_ids = getattr(self, "_existing_vendor_ids", set())
+        
+        if not existing_vendor_ids:
+            return award_index
+        
+        query = (
+            db.query(
+                models.SbirAward.vendor_id,
+                models.SbirAward.award_piid,
+                models.SbirAward.phase,
+                models.SbirAward.agency,
+            )
+            .filter(models.SbirAward.vendor_id.in_(existing_vendor_ids))
+            .yield_per(1000)
+        )
+        
+        for vendor_id, piid, phase, agency in query:
+            key = (
+                str(piid or '').strip(),
+                str(phase or '').strip(),
+                str(agency or '').strip(),
+            )
+            award_index[vendor_id].add(key)
+        
+        self.log_progress(f"Prepared deduplication index for {len(award_index)} vendors")
+        return award_index
+    
+    def _bulk_insert_awards_deduplicated(self, db: Session, df: pd.DataFrame) -> tuple[int, int]:
         """Bulk insert SBIR awards with duplicate prevention."""
         # Get existing awards to prevent duplicates
-        existing_awards = set()
-        existing_query = db.query(
-            models.SbirAward.vendor_id,
-            models.SbirAward.award_piid, 
-            models.SbirAward.phase,
-            models.SbirAward.agency
-        ).all()
-        
-        for vendor_id, piid, phase, agency in existing_query:
-            key = (vendor_id, str(piid or '').strip(), str(phase or '').strip(), str(agency or '').strip())
-            existing_awards.add(key)
-        
-        self.log_progress(f"Found {len(existing_awards):,} existing awards for duplicate checking")
+        existing_awards = self._load_existing_award_index(db)
         
         # Determine award number field (flexible for different CSV formats)
         award_field = None
@@ -157,13 +181,14 @@ class SbirIngester(BaseIngester):
                 agency = str(row.get('Agency', '')).strip()
                 
                 # Check for duplicate
-                key = (vendor_id, award_piid, phase, agency)
-                if key in existing_awards:
+                vendor_awards = existing_awards.setdefault(vendor_id, set())
+                key = (award_piid, phase, agency)
+                if key in vendor_awards:
                     duplicates_skipped += 1
                     continue
                 
                 # Add to existing set to prevent intra-batch duplicates
-                existing_awards.add(key)
+                vendor_awards.add(key)
                 
                 # Handle completion date properly (convert NaT to None)
                 completion_date = pd.to_datetime(row.get('Contract End Date'), errors='coerce')
@@ -186,4 +211,4 @@ class SbirIngester(BaseIngester):
             db.bulk_insert_mappings(models.SbirAward, awards_data)
             self.log_progress(f"Inserted {len(awards_data):,} new awards, skipped {duplicates_skipped:,} duplicates")
         
-        return len(awards_data)
+        return len(awards_data), duplicates_skipped

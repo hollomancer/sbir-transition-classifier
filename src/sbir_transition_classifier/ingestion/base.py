@@ -12,6 +12,7 @@ class IngestionStats:
     total_rows: int = 0
     valid_records: int = 0
     rejected_records: int = 0
+    duplicates_skipped: int = 0
     rejection_reasons: Dict[str, int] = None
     processing_time: float = 0.0
     

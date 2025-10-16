@@ -3,9 +3,8 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 import pandas as pd
-import hashlib
 import uuid
-import dask.dataframe as dd
+import resource
 import click
 from sqlalchemy.orm import Session
 from src.sbir_transition_classifier.db.database import SessionLocal, engine
@@ -32,31 +31,30 @@ def cli():
 def load_sbir_data(file_path, chunk_size, verbose):
     """Loads SBIR award data from a CSV file into the database."""
     console = Console()
-    
+
     if verbose:
         logger.remove()
         logger.add(lambda msg: console.print(msg, style="dim"), level="DEBUG")
-    
+
     # Check if file exists
     data_file = Path(file_path)
     if not data_file.exists():
         logger.error(f"Data file not found: {file_path}")
         console.print(f"[red]❌ Error: File not found: {file_path}[/red]")
         return
-    
+
     file_size = data_file.stat().st_size / (1024 * 1024)  # MB
     logger.info(f"Processing file: {file_path} ({file_size:.1f} MB)")
-    
+
     # Header
     console.print(Panel.fit(
         "[bold blue]SBIR Data Loader[/bold blue]\n"
         f"[dim]Processing: {data_file.name} ({file_size:.1f} MB)[/dim]",
         border_style="blue"
     ))
-    
+
     start_time = time.time()
-    
-    # Enhanced statistics tracking
+
     stats = {
         'total_rows': 0,
         'valid_awards': 0,
@@ -66,9 +64,10 @@ def load_sbir_data(file_path, chunk_size, verbose):
         'vendors_created': 0,
         'vendors_reused': 0,
         'processing_errors': 0,
-        'date_fallbacks_used': 0
+        'date_fallbacks_used': 0,
+        'duplicates_skipped': 0
     }
-    
+
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
@@ -77,45 +76,40 @@ def load_sbir_data(file_path, chunk_size, verbose):
         TimeElapsedColumn(),
         console=console
     ) as progress:
-        
-        # Initialize database
+
         init_task = progress.add_task("🔄 Initializing database...", total=1)
         init_db()
         progress.update(init_task, advance=1)
-        logger.info("Database initialized successfully")
-        
-        # Read CSV with better error handling
-        read_task = progress.add_task("📁 Reading CSV file...", total=1)
-        logger.info(f"Reading CSV with pandas (chunk size: {chunk_size})")
+
+        process_task = progress.add_task("📊 Processing CSV batches...", total=None)
+
         try:
-            # Use pandas with robust error handling for malformed CSV files
-            ddf = pd.read_csv(file_path, dtype=str, on_bad_lines='skip', encoding='utf-8', quoting=1)
-            # Convert to dask for processing
-            ddf = dd.from_pandas(ddf, npartitions=max(1, len(ddf) // chunk_size))
-            stats['total_rows'] = len(ddf)
+            reader = pd.read_csv(
+                file_path,
+                dtype=str,
+                on_bad_lines='skip',
+                encoding='utf-8',
+                quoting=1,
+                chunksize=chunk_size
+            )
         except Exception as e:
             console.print(f"[red]Error reading CSV: {e}[/red]")
+            logger.exception("Failed to read SBIR CSV")
             return
-        progress.update(read_task, advance=1)
-        logger.info(f"Total rows to process: {stats['total_rows']:,}")
-        
+
         db: Session = SessionLocal()
-        
+        vendor_cache = {}
+        award_index_cache = {}
+
         try:
-            partitions = list(ddf.partitions)
-            total_partitions = len(partitions)
-            
-            # Main processing task
-            process_task = progress.add_task(
-                f"📊 Processing {total_partitions} partitions...", 
-                total=total_partitions
-            )
-            
-            for i, partition in enumerate(partitions, 1):
-                partition_start = time.time()
-                
-                df = partition.compute()
-                partition_stats = {
+            for batch_number, df in enumerate(reader, start=1):
+                if df is None or df.empty:
+                    continue
+
+                chunk_start = time.time()
+                stats['total_rows'] += len(df)
+
+                chunk_stats = {
                     'vendors_created': 0,
                     'vendors_reused': 0,
                     'awards_created': 0,
@@ -123,213 +117,221 @@ def load_sbir_data(file_path, chunk_size, verbose):
                     'missing_dates': 0,
                     'invalid_dates': 0,
                     'date_fallbacks': 0,
+                    'duplicates': 0,
                     'errors': 0
                 }
-                
-                # Batch processing - collect all operations before committing
-                vendors_to_create = []
+
+                award_field = next((field for field in ['Award Number', 'Contract', 'Agency Tracking Number'] if field in df.columns), None)
                 awards_to_create = []
-                vendor_cache = {}
-                
+
                 for _, row in df.iterrows():
                     try:
-                        # Basic data cleaning and vendor handling
                         company_name = row.get('Company')
                         if not company_name or pd.isna(company_name):
-                            partition_stats['missing_company'] += 1
-                            continue
-                        
-                        company_name = str(company_name).strip()
-                        if not company_name:
-                            partition_stats['missing_company'] += 1
+                            chunk_stats['missing_company'] += 1
                             continue
 
-                        # Check cache first, then database
+                        company_name = str(company_name).strip()
+                        if not company_name:
+                            chunk_stats['missing_company'] += 1
+                            continue
+
                         vendor_id = vendor_cache.get(company_name)
-                        if not vendor_id:
+                        if vendor_id is None:
                             vendor = db.query(models.Vendor).filter(models.Vendor.name == company_name).first()
                             if vendor:
                                 vendor_id = vendor.id
                                 vendor_cache[company_name] = vendor_id
-                                partition_stats['vendors_reused'] += 1
+                                chunk_stats['vendors_reused'] += 1
                             else:
-                                # Queue for batch creation
-                                vendor_obj = models.Vendor(name=company_name, created_at=pd.Timestamp.now())
-                                vendors_to_create.append(vendor_obj)
-                                vendor_cache[company_name] = vendor_obj  # Temporary reference
-                                partition_stats['vendors_created'] += 1
+                                vendor = models.Vendor(name=company_name, created_at=pd.Timestamp.now())
+                                db.add(vendor)
+                                db.flush()
+                                vendor_id = vendor.id
+                                vendor_cache[company_name] = vendor_id
+                                award_index_cache[vendor_id] = set()
+                                chunk_stats['vendors_created'] += 1
 
-                        # Enhanced date handling with Award Year fallback for 100% recovery
+                        vendor_awards = award_index_cache.get(vendor_id)
+                        if vendor_awards is None:
+                            vendor_awards = {
+                                (str(piid or '').strip(), str(phase or '').strip(), str(agency or '').strip(), 
+                                 str(year or '').strip(), str(amount or '').strip())
+                                for piid, phase, agency, year, amount in db.query(
+                                    models.SbirAward.award_piid,
+                                    models.SbirAward.phase,
+                                    models.SbirAward.agency,
+                                    models.SbirAward.raw_data['Award Year'].astext,
+                                    models.SbirAward.raw_data['Award Amount'].astext
+                                )
+                                .filter(models.SbirAward.vendor_id == vendor_id)
+                                .yield_per(500)
+                            }
+                            award_index_cache[vendor_id] = vendor_awards
+
+                        award_piid = str(row.get(award_field, '')).strip() if award_field else ''
+                        phase = str(row.get('Phase', '')).strip() if pd.notna(row.get('Phase')) else ''
+                        agency = str(row.get('Agency', '')).strip() if pd.notna(row.get('Agency')) else ''
+                        award_year = str(row.get('Award Year', '')).strip() if pd.notna(row.get('Award Year')) else ''
+                        award_amount = str(row.get('Award Amount', '')).strip() if pd.notna(row.get('Award Amount')) else ''
+
+                        key = (award_piid, phase, agency, award_year, award_amount)
+                        if key in vendor_awards:
+                            chunk_stats['duplicates'] += 1
+                            continue
+
                         award_date = None
                         completion_date = None
-                        used_fallback = False
-                        
-                        # Try multiple date fields in order of preference
+
                         date_fields = [
                             ('Proposal Award Date', 'primary award date'),
                             ('Date of Notification', 'notification date'),
                             ('Solicitation Close Date', 'solicitation close'),
                             ('Proposal Receipt Date', 'proposal receipt')
                         ]
-                        
-                        for field_name, description in date_fields:
-                            if award_date is None:  # Only if we haven't found a date yet
-                                field_value = row.get(field_name)
-                                if field_value and str(field_value).lower() not in ['nan', 'null', '']:
-                                    parsed_date = pd.to_datetime(field_value, errors='coerce')
-                                    if not pd.isna(parsed_date):
-                                        award_date = parsed_date
-                                        break
-                        
-                        # Final fallback: Use Award Year as January 1st of that year
-                        if pd.isna(award_date):
+
+                        for field_name, _ in date_fields:
+                            field_value = row.get(field_name)
+                            if field_value and str(field_value).lower() not in ['nan', 'null', '']:
+                                parsed_date = pd.to_datetime(field_value, errors='coerce')
+                                if not pd.isna(parsed_date):
+                                    award_date = parsed_date
+                                    break
+
+                        if award_date is None or pd.isna(award_date):
                             award_year = row.get('Award Year')
                             if award_year and str(award_year).lower() not in ['nan', 'null', '']:
                                 try:
-                                    year_int = int(award_year)
-                                    if 1905 <= year_int <= 2025:  # Reasonable year range
+                                    year_int = int(str(award_year).strip())
+                                    if 1905 <= year_int <= 2025:
                                         award_date = pd.Timestamp(year=year_int, month=1, day=1)
-                                        used_fallback = True
-                                        partition_stats['date_fallbacks'] += 1
+                                        chunk_stats['date_fallbacks'] += 1
                                 except (ValueError, TypeError):
                                     pass
-                        
-                        # Try Contract End Date for completion, but make it optional
+
                         contract_end = row.get('Contract End Date')
                         if contract_end and str(contract_end).lower() not in ['nan', 'null', '']:
                             completion_date = pd.to_datetime(contract_end, errors='coerce')
-                        
-                        # Skip only if we have no award date at all (should be very rare now)
-                        if pd.isna(award_date):
-                            partition_stats['missing_dates'] += 1
+                            if pd.isna(completion_date):
+                                completion_date = None
+
+                        if award_date is None or pd.isna(award_date):
+                            chunk_stats['missing_dates'] += 1
                             continue
 
-                        award_data = {
-                            'award_piid': str(row.get('Award Number', '')).strip() if pd.notna(row.get('Award Number')) else '',
-                            'phase': str(row.get('Phase', '')).strip() if pd.notna(row.get('Phase')) else '',
-                            'agency': str(row.get('Agency', '')).strip() if pd.notna(row.get('Agency')) else '',
-                            'topic': str(row.get('Topic', '')).strip() if pd.notna(row.get('Topic')) else '',
-                            'award_date': award_date,
-                            'completion_date': completion_date,  # Can be None
-                            'created_at': pd.Timestamp.now(),
+                        vendor_awards.add(key)
+
+                        # Store raw data for duplicate checking
+                        raw_data = {
+                            'Award Year': award_year,
+                            'Award Amount': award_amount,
+                            'Award Title': str(row.get('Award Title', '')).strip() if pd.notna(row.get('Award Title')) else '',
+                            'Program': str(row.get('Program', '')).strip() if pd.notna(row.get('Program')) else ''
                         }
-                        awards_to_create.append((company_name, award_data))
-                        partition_stats['awards_created'] += 1
-                        
+
+                        awards_to_create.append(models.SbirAward(
+                            vendor_id=vendor_id,
+                            award_piid=award_piid,
+                            phase=phase,
+                            agency=agency,
+                            topic=str(row.get('Topic', '')).strip() if pd.notna(row.get('Topic')) else '',
+                            award_date=award_date,
+                            completion_date=completion_date,
+                            raw_data=raw_data,
+                            created_at=pd.Timestamp.now()
+                        ))
+                        chunk_stats['awards_created'] += 1
+
                     except Exception as e:
-                        partition_stats['errors'] += 1
+                        chunk_stats['errors'] += 1
                         if verbose:
                             logger.warning(f"Error processing row: {e}")
-                
-                # Batch insert vendors
-                if vendors_to_create:
-                    db.add_all(vendors_to_create)
-                    db.flush()  # Get IDs without committing
-                    
-                    # Update cache with actual IDs
-                    for vendor_obj in vendors_to_create:
-                        vendor_cache[vendor_obj.name] = vendor_obj.id
-                
-                # Batch insert awards
-                award_objects = []
-                for company_name, award_data in awards_to_create:
-                    vendor_id = vendor_cache[company_name]
-                    if hasattr(vendor_id, 'id'):  # Handle vendor objects
-                        vendor_id = vendor_id.id
-                    
-                    award = models.SbirAward(vendor_id=vendor_id, **award_data)
-                    award_objects.append(award)
-                
-                if award_objects:
-                    db.add_all(award_objects)
-                
-                # Single commit for entire partition
-                db.commit()
-                
-                # Update global stats
-                for key in partition_stats:
-                    if key == 'awards_created':
-                        stats['valid_awards'] += partition_stats[key]
-                    elif key == 'missing_company':
-                        stats['skipped_missing_company'] += partition_stats[key]
-                    elif key == 'missing_dates':
-                        stats['skipped_missing_dates'] += partition_stats[key]
-                    elif key == 'date_fallbacks':
-                        stats['date_fallbacks_used'] += partition_stats[key]
-                    elif key == 'errors':
-                        stats['processing_errors'] += partition_stats[key]
-                    elif key in stats:
-                        stats[key] += partition_stats[key]
-                
-                partition_time = time.time() - partition_start
-                
-                # Update progress with detailed info
-                progress.update(process_task, advance=1)
-                
-                # Show periodic detailed stats every 4 partitions
-                if verbose and i % 4 == 0:
-                    console.print(f"[dim]Partition {i}/{total_partitions}: "
-                                f"{partition_stats['awards_created']} awards, "
-                                f"{partition_stats['vendors_created']} new vendors, "
-                                f"{partition_stats['missing_company'] + partition_stats['missing_dates']} rejected[/dim]")
+
+                try:
+                    if awards_to_create:
+                        db.add_all(awards_to_create)
+                    db.commit()
+                except Exception as exc:
+                    db.rollback()
+                    logger.exception("Failed to commit SBIR awards chunk")
+                    console.print(f"[red]Error committing chunk {batch_number}: {exc}[/red]")
+                    raise
+
+                stats['valid_awards'] += chunk_stats['awards_created']
+                stats['vendors_created'] += chunk_stats['vendors_created']
+                stats['vendors_reused'] += chunk_stats['vendors_reused']
+                stats['skipped_missing_company'] += chunk_stats['missing_company']
+                stats['skipped_missing_dates'] += chunk_stats['missing_dates']
+                stats['date_fallbacks_used'] += chunk_stats['date_fallbacks']
+                stats['processing_errors'] += chunk_stats['errors']
+                stats['duplicates_skipped'] += chunk_stats['duplicates']
+
+                chunk_time = time.time() - chunk_start
+                progress.advance(process_task, 1)
+                progress.update(process_task, description=f"📊 Processed {stats['total_rows']:,} rows")
+
+                if verbose and batch_number % 4 == 0:
+                    console.print(
+                        f"[dim]Chunk {batch_number}: {chunk_stats['awards_created']} awards, "
+                        f"{chunk_stats['vendors_created']} new vendors, "
+                        f"{chunk_stats['duplicates']} duplicates ({chunk_time:.1f}s)[/dim]"
+                    )
 
         finally:
             db.close()
-        
-        total_time = time.time() - start_time
-        
-        # Results summary
-        console.print()
-        console.print(Panel.fit(
-            "[bold green]✅ SBIR Data Loading Complete![/bold green]",
-            border_style="green"
-        ))
-        
-        # Detailed summary table with rejection reasons
-        summary_table = Table(title="📈 SBIR Loading Results")
-        summary_table.add_column("Metric", style="cyan")
-        summary_table.add_column("Count", justify="right", style="green")
-        summary_table.add_column("Percentage", justify="right", style="yellow")
-        
-        # Calculate percentages
-        total_processed = stats['total_rows']
-        retention_rate = (stats['valid_awards'] / total_processed * 100) if total_processed > 0 else 0
-        
-        summary_table.add_row("Total rows processed", f"{total_processed:,}", "100.0%")
-        summary_table.add_row("✅ Awards imported", f"{stats['valid_awards']:,}", f"{retention_rate:.1f}%")
-        summary_table.add_row("🏢 New vendors created", f"{stats['vendors_created']:,}", "")
-        summary_table.add_row("🔄 Existing vendors reused", f"{stats['vendors_reused']:,}", "")
-        
-        # Rejection breakdown
-        if stats['skipped_missing_company'] > 0:
-            pct = stats['skipped_missing_company'] / total_processed * 100
-            summary_table.add_row("❌ Missing company name", f"{stats['skipped_missing_company']:,}", f"{pct:.1f}%")
-        
-        if stats['skipped_missing_dates'] > 0:
-            pct = stats['skipped_missing_dates'] / total_processed * 100
-            summary_table.add_row("❌ No valid dates found", f"{stats['skipped_missing_dates']:,}", f"{pct:.1f}%")
-        
-        if stats['date_fallbacks_used'] > 0:
-            pct = stats['date_fallbacks_used'] / total_processed * 100
-            summary_table.add_row("🔄 Award Year fallbacks used", f"{stats['date_fallbacks_used']:,}", f"{pct:.1f}%")
-        
-        if stats['processing_errors'] > 0:
-            pct = stats['processing_errors'] / total_processed * 100
-            summary_table.add_row("⚠️  Processing errors", f"{stats['processing_errors']:,}", f"{pct:.1f}%")
-        
-        summary_table.add_row("⏱️  Total processing time", f"{total_time:.1f}s", "")
-        summary_table.add_row("🚀 Processing rate", f"{total_processed/total_time:.0f} rows/sec", "")
-        
-        console.print(summary_table)
-        
-        # Data quality insights
-        if stats['date_fallbacks_used'] > 0:
-            console.print(f"[yellow]💡 Data Quality Note: {stats['date_fallbacks_used']:,} records used Award Year fallback for missing dates[/yellow]")
-        
-        total_rejected = stats['skipped_missing_company'] + stats['skipped_missing_dates'] + stats['processing_errors']
-        if total_rejected > 0:
-            console.print(f"[yellow]⚠️  {total_rejected:,} rows rejected. Use --verbose for detailed error tracking.[/yellow]")
 
+    total_time = time.time() - start_time
+    total_processed = stats['total_rows']
+    retention_rate = (stats['valid_awards'] / total_processed * 100) if total_processed > 0 else 0
+    rows_per_sec = (total_processed / total_time) if total_time > 0 else 0
+    usage = resource.getrusage(resource.RUSAGE_SELF)
+    peak_memory = usage.ru_maxrss
+    if sys.platform == 'darwin':
+        peak_memory_mb = peak_memory / (1024 * 1024)
+    else:
+        peak_memory_mb = peak_memory / 1024
+
+    console.print()
+    console.print(Panel.fit(
+        "[bold green]✅ SBIR Data Loading Complete![/bold green]",
+        border_style="green"
+    ))
+
+    summary_table = Table(title="📈 SBIR Loading Results")
+    summary_table.add_column("Metric", style="cyan")
+    summary_table.add_column("Count", justify="right", style="green")
+    summary_table.add_column("Percentage", justify="right", style="yellow")
+
+    summary_table.add_row("Total rows processed", f"{total_processed:,}", "100.0%")
+    summary_table.add_row("✅ Awards imported", f"{stats['valid_awards']:,}", f"{retention_rate:.1f}%")
+    summary_table.add_row("🏢 New vendors created", f"{stats['vendors_created']:,}", "")
+    summary_table.add_row("🔄 Existing vendors reused", f"{stats['vendors_reused']:,}", "")
+
+    if stats['skipped_missing_company'] > 0:
+        pct = (stats['skipped_missing_company'] / total_processed * 100) if total_processed else 0
+        summary_table.add_row("❌ Missing company name", f"{stats['skipped_missing_company']:,}", f"{pct:.1f}%")
+
+    if stats['skipped_missing_dates'] > 0:
+        pct = (stats['skipped_missing_dates'] / total_processed * 100) if total_processed else 0
+        summary_table.add_row("❌ No valid dates found", f"{stats['skipped_missing_dates']:,}", f"{pct:.1f}%")
+
+    if stats['date_fallbacks_used'] > 0:
+        pct = (stats['date_fallbacks_used'] / total_processed * 100) if total_processed else 0
+        summary_table.add_row("🔄 Award Year fallbacks used", f"{stats['date_fallbacks_used']:,}", f"{pct:.1f}%")
+
+    if stats['duplicates_skipped'] > 0:
+        pct = (stats['duplicates_skipped'] / total_processed * 100) if total_processed else 0
+        summary_table.add_row("🔁 Duplicates skipped", f"{stats['duplicates_skipped']:,}", f"{pct:.1f}%")
+
+    if stats['processing_errors'] > 0:
+        pct = (stats['processing_errors'] / total_processed * 100) if total_processed else 0
+        summary_table.add_row("⚠️  Processing errors", f"{stats['processing_errors']:,}", f"{pct:.1f}%")
+
+    summary_table.add_row("⏱️  Total processing time", f"{total_time:.1f}s", "")
+    summary_table.add_row("🚀 Rows per second", f"{rows_per_sec:.1f}", "")
+    summary_table.add_row("💾 Peak memory", f"{peak_memory_mb:.1f} MB", "")
+
+    console.print(summary_table)
 @cli.command()
 @click.option('--file-path', required=True, help='Path to the USAspending CSV file.')
 @click.option('--chunk-size', default=50000, help='Number of records to process in each batch.')

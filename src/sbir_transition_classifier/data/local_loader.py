@@ -182,8 +182,8 @@ class LocalDataLoader:
         
         # Clean phase values - extract just the phase number/name
         if 'phase' in df.columns:
-            # Handle NaN values properly before string operations
-            df['phase'] = df['phase'].fillna('').astype(str).str.replace('Phase ', '', regex=False).str.strip()
+            # Handle NaN values and convert to string before string operations
+            df['phase'] = df['phase'].fillna('').apply(lambda x: str(x) if pd.notna(x) else '').str.replace('Phase ', '', regex=False).str.strip()
         
         return df
     

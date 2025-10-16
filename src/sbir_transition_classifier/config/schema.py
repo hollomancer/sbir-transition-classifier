@@ -1,6 +1,8 @@
 """Configuration schema definitions using Pydantic."""
 
-from typing import List, Literal
+from typing import List, Literal, Optional
+
+
 from pydantic import BaseModel, Field, validator
 
 
@@ -94,6 +96,30 @@ class TimingConfig(BaseModel):
         return v
 
 
+class IngestionConfig(BaseModel):
+    """Parameters for data ingestion."""
+
+    data_formats: List[Literal["csv", "json"]] = Field(
+        default=["csv"],
+        min_items=1,
+        description="List of supported data formats for ingestion."
+    )
+    encoding: str = Field(
+        default="utf-8",
+        description="Encoding for input files."
+    )
+    chunk_size: int = Field(
+        default=10000,
+        gt=0,
+        description="Number of rows to process at a time for large files."
+    )
+    max_records: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Maximum number of records to process from input data. 0 means no limit."
+    )
+
+
 class DetectionConfig(BaseModel):
     """Detection algorithm configuration."""
     
@@ -128,6 +154,7 @@ class ConfigSchema(BaseModel):
         default="1.0",
         description="Configuration schema version"
     )
+    ingestion: IngestionConfig = Field(default_factory=IngestionConfig)
     detection: DetectionConfig = Field(default_factory=DetectionConfig)
     output: OutputConfig = Field(default_factory=OutputConfig)
     

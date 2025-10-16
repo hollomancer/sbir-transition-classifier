@@ -1,23 +1,30 @@
-from sqlalchemy.orm import Session
+from collections import Counter
+from sqlalchemy.orm import Session, selectinload
 from loguru import logger
+from rich.table import Table
 from ..core import models
 from . import heuristics, scoring
 from ..db.database import SessionLocal
 import datetime
 import uuid
-import json
 import multiprocessing as mp
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 import os
 
-def process_award_chunk(award_ids: List[str]) -> List[Dict[str, Any]]:
+def process_award_chunk(payload: Tuple[List[str], int]) -> Tuple[List[Dict[str, Any]], int]:
     """Process a chunk of award IDs and return detection data for bulk insert."""
+    award_ids, expected_count = payload
     db = SessionLocal()
     detections_data = []
     
     try:
         # Re-query awards in this process to avoid session issues
-        awards = db.query(models.SbirAward).filter(models.SbirAward.id.in_(award_ids)).all()
+        awards = (
+            db.query(models.SbirAward)
+            .options(selectinload(models.SbirAward.vendor))
+            .filter(models.SbirAward.id.in_(award_ids))
+            .all()
+        )
         
         for award in awards:
             candidate_contracts = heuristics.find_candidate_contracts(db, award)
@@ -31,10 +38,7 @@ def process_award_chunk(award_ids: List[str]) -> List[Dict[str, Any]]:
                     text_signals = heuristics.get_text_based_signals(award, contract)
                     
                     # Get vendor name safely
-                    vendor_name = None
-                    if award.vendor_id:
-                        vendor = db.query(models.Vendor).filter(models.Vendor.id == award.vendor_id).first()
-                        vendor_name = vendor.name if vendor else None
+                    vendor_name = award.vendor.name if award.vendor else None
                     
                     evidence = {
                         "detection_id": str(uuid.uuid4()),
@@ -70,7 +74,8 @@ def process_award_chunk(award_ids: List[str]) -> List[Dict[str, Any]]:
     finally:
         db.close()
     
-    return detections_data
+    # Use actual awards processed to keep progress accurate even if rows disappear
+    return detections_data, len(awards) if awards else expected_count
 
 def run_detection_for_award(db: Session, sbir_award: models.SbirAward):
     """Legacy function - kept for compatibility."""
@@ -152,9 +157,12 @@ def run_full_detection():
         
         # Split award IDs into chunks for parallel processing
         award_ids = [award.id for award in eligible_awards]
-        chunk_size = max(1, total_awards // num_workers)
-        award_id_chunks = [award_ids[i:i + chunk_size] 
-                          for i in range(0, len(award_ids), chunk_size)]
+        dynamic_chunk_size = max(200, total_awards // (num_workers * 8) or 1)
+        award_id_chunks = [
+            award_ids[i:i + dynamic_chunk_size]
+            for i in range(0, len(award_ids), dynamic_chunk_size)
+        ]
+        chunk_payloads = [(chunk, len(chunk)) for chunk in award_id_chunks]
         
         with Progress(
             SpinnerColumn(),
@@ -162,25 +170,63 @@ def run_full_detection():
             BarColumn(),
             TaskProgressColumn(),
             TimeElapsedColumn(),
+            console=console,
         ) as progress:
             
-            task = progress.add_task("🔍 Detecting transitions", total=len(award_id_chunks))
+            task = progress.add_task("🔍 Detecting transitions", total=total_awards)
             
             all_detections = []
+            total_processed = 0
             
             # Process chunks in parallel
             with mp.Pool(num_workers) as pool:
-                for chunk_results in pool.imap(process_award_chunk, award_id_chunks):
+                for chunk_results, processed_count in pool.imap(process_award_chunk, chunk_payloads, chunksize=1):
                     all_detections.extend(chunk_results)
-                    progress.update(task, advance=1)
+                    total_processed += processed_count
+                    progress.update(task, advance=processed_count)
+            
+            # Ensure the progress bar reflects any rounding adjustments
+            progress.update(task, completed=min(total_processed, total_awards))
         
         # Bulk insert all detections
         if all_detections:
             console.print(f"💾 Bulk inserting {len(all_detections)} detections...", style="cyan")
             db.bulk_insert_mappings(models.Detection, all_detections)
             db.commit()
+            confidence_counts = Counter(det['confidence'] for det in all_detections)
+            summary_table = Table(title="Detection Summary", show_lines=False)
+            summary_table.add_column("Confidence", style="cyan")
+            summary_table.add_column("Detections", justify="right", style="green")
+            summary_table.add_column("Avg Score", justify="right", style="yellow")
+            
+            scores_by_confidence: Dict[str, List[float]] = {}
+            for det in all_detections:
+                scores_by_confidence.setdefault(det['confidence'], []).append(det['likelihood_score'])
+            
+            for confidence, count in confidence_counts.most_common():
+                avg_score = sum(scores_by_confidence[confidence]) / count if count else 0.0
+                summary_table.add_row(confidence or "Unknown", f"{count:,}", f"{avg_score:.3f}")
+            
+            console.print(summary_table)
+            
+            agency_counter = Counter(
+                (det['evidence_bundle']['source_contract'].get('agency') or "Unknown").upper()
+                for det in all_detections
+            )
+            
+            top_agencies = agency_counter.most_common(5)
+            if top_agencies:
+                agency_table = Table(title="Top Contract Agencies", show_header=True)
+                agency_table.add_column("Agency", style="cyan")
+                agency_table.add_column("Detections", justify="right", style="green")
+                for agency, count in top_agencies:
+                    agency_table.add_row(agency, f"{count:,}")
+                console.print(agency_table)
         
-        console.print(f"✅ Detection complete. Found {len(all_detections)} new transitions.", style="green bold")
+        if all_detections:
+            console.print(f"✅ Detection complete. Found {len(all_detections)} new transitions.", style="green bold")
+        else:
+            console.print("⚠️  Detection complete. No new transitions met the configured thresholds.", style="yellow")
         
     finally:
         db.close()

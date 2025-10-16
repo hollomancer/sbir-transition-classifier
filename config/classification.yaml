@@ -34,7 +34,7 @@ candidate_selection:
     - "Phase II"
   
   # Time window for contract search (in days)
-  search_window_days: 720  # 24 months * 30 days
+  search_window_days: 999999  # Unlimited time window
   
   # Base scoring parameters
   base_score: 0.2  # Base score for any potential match

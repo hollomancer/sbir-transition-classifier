@@ -1,23 +1,23 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-Core services live under `src/sbir_transition_classifier/`: `detection/` contains scoring logic, `core/` houses settings and shared models, `data/` defines request and evidence schemas, and `db/` manages persistence. Supporting data utilities live in `scripts/` and should be invoked via `python -m scripts.<task>`. Test suites are split into `tests/unit/` for isolated logic and `tests/integration/` for end-to-end flows. Project-level assets and bulk inputs belong in `data/`; avoid committing sensitive or oversized raw downloads.
+Core code resides in `src/sbir_transition_classifier/`: `detection/` hosts scoring logic, `core/` holds shared settings and models, `data/` defines schemas, and `db/` manages persistence. CLI entry points mirror this layout under `src/sbir_transition_classifier/cli/`. Data utilities live in `scripts/` and should be executed with `python -m scripts.<task>`. Tests are split between `tests/unit/` for isolated components and `tests/integration/` for pipeline coverage. Place large inputs in `data/` and write generated artifacts to `output/`.
 
 ## Build, Test, and Development Commands
-- `poetry install` – set up the Python environment (requires Poetry ≥1.5).
-- `poetry run sbir-detect bulk-process --verbose` – run the complete detection pipeline with rich progress indicators.
-- `poetry run python -m scripts.load_bulk_data load-sbir-data --file-path data/awards.csv --verbose` – ingest award files placed in `data/`.
-- `poetry run python -m scripts.export_data export-jsonl --output-path results.jsonl` – generate detection exports for manual review.
-- `poetry shell` – activate the Poetry virtual environment for direct command access.
+- `poetry install` – install dependencies for Python 3.11.
+- `poetry shell` – enter the virtualenv for ad-hoc commands.
+- `poetry run sbir-detect bulk-process --verbose` – execute the full detection pipeline with progress reporting.
+- `poetry run python -m scripts.load_bulk_data load-sbir-data --file-path data/awards.csv --verbose` – stage SBIR award extracts from `data/`.
+- `poetry run python -m scripts.export_data export-jsonl --output-path output/results.jsonl` – export detection results for manual review.
 
 ## Coding Style & Naming Conventions
-Write Python 3.11 code with PEP 8 spacing (4 spaces, 120-character soft limit) and prefer descriptive, snake_case module and function names. Classes should use PascalCase and return detailed `Loguru` messages rather than bare `print`. Annotate function signatures with types, keep CLI commands in `cli/` modularized by domain, and mirror existing folder names when adding new modules (e.g., `detection/features`). Use Rich for progress indicators and formatted output.
+Follow PEP 8 spacing (4 spaces, soft 120-character limit) and prefer descriptive snake_case for modules and functions. Use PascalCase for classes, return structured `loguru` messages instead of `print`, and annotate function signatures with types. Match existing directory names when adding modules (e.g., `detection/features/signal_name.py`) and lean on Rich for interactive console output.
 
 ## Testing Guidelines
-Tests use `pytest`; name files `test_*.py` and functions `test_<behavior>` so they auto-discover. Add unit coverage alongside new logic and place scenario tests under `tests/integration/`. Run `poetry run pytest tests/unit` before opening a PR, and finish with `poetry run pytest` to confirm both suites. Provide fixtures for external services instead of hitting live endpoints, and update golden evidence samples if schema changes are intentional.
+Pytest drives all suites; keep files as `tests/*/test_*.py` with functions named `test_<behavior>`. Write unit tests alongside new logic and add integration coverage when workflows or schemas change. Run `poetry run pytest tests/unit` during development and finish with `poetry run pytest` before submitting. Update golden fixtures under `tests/` if schema updates are intentional.
 
 ## Commit & Pull Request Guidelines
-Follow the existing Git history: concise, imperative subject lines (e.g., "Add detection signal for competed awards") with optional detail in the body. Reference related issues in the description (`Fixes #123`) and summarize data migrations or schema shifts explicitly. Pull requests should include: brief motivation, testing notes (command output or relevant screenshots), CLI changes, and any follow-up tasks. Coordinate large data updates or migration scripts with the maintainers before merging.
+Write commits with concise, imperative subjects (e.g., `Add detection signal for competed awards`) and optional explanatory bodies. Pull requests should outline motivation, summarize data or schema impacts, list test commands run, and link issues via `Fixes #123`. Coordinate heavy data migrations or bulk reloads with maintainers before merging.
 
-## Data & Security Notes
-The repository assumes SBIR award and USAspending extracts are staged under `data/`; scrub PII before sharing local fixtures. Credentials for external services belong in environment variables consumed by `core.settings`. When developing new loaders or exporters, ensure they respect the existing SQLite migrations and create output files in the `output/` directory with appropriate timestamps.
+## Security & Configuration Tips
+Load secrets through environment variables consumed by `core.settings`. Ensure SBIR and USAspending feeds are scrubbed before copying into `data/`, and avoid committing raw exports. New loaders or exporters must respect existing SQLite migrations and write timestamped outputs under `output/`.

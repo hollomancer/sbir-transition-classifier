@@ -1,5 +1,11 @@
 schema_version: "1.0"
 
+ingestion:
+  data_formats: ["csv"]
+  encoding: "utf-8"
+  chunk_size: 10000
+  max_records: null
+
 detection:
   thresholds:
     high_confidence: 0.85
