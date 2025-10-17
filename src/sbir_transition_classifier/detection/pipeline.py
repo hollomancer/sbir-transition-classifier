@@ -117,6 +117,10 @@ class ConfigurableDetectionPipeline:
     def _passes_feature_filters(self, contract: Dict[str, Any]) -> bool:
         """Check if contract passes configured feature filters."""
         
+        # Data quality filter: Check for PIID/date mismatches
+        if self._has_date_mismatch(contract):
+            return False
+        
         # If competed contracts are disabled, only allow sole source
         if not self.config.detection.features.enable_competed_contracts:
             if not self.scorer._is_sole_source(contract):
@@ -125,6 +129,27 @@ class ConfigurableDetectionPipeline:
         # Additional feature-based filters could go here
         
         return True
+    
+    def _has_date_mismatch(self, contract: Dict[str, Any]) -> bool:
+        """Check if contract has suspicious PIID/date mismatch."""
+        import re
+        
+        piid = contract.get('piid', '')
+        start_date = contract.get('start_date')
+        
+        if not piid or not start_date:
+            return False
+            
+        # Extract year from PIID
+        year_match = re.search(r'20\d{2}', piid)
+        if not year_match:
+            return False
+            
+        piid_year = int(year_match.group())
+        contract_year = start_date.year if hasattr(start_date, 'year') else int(str(start_date)[:4])
+        
+        # Flag contracts with >2 year difference as suspicious
+        return abs(piid_year - contract_year) > 2
     
     def _create_detection(self, award: Dict[str, Any], contract: Dict[str, Any], score: float, confidence: str) -> Detection:
         """Create Detection object from award and contract data."""

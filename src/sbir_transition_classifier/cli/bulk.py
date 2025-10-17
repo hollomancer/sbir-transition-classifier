@@ -181,8 +181,30 @@ def bulk_process(
                 f"[dim]⏭️  SBIR awards already present (latest record: {latest_phase} at {created_display}). Skipping Phase 1a.[/dim]"
             )
         
-        # Load contract data if needed
-        if not contract_exists:
+        # Load contract data - check for new files
+        csv_files = [f for f in data_dir.glob("*.csv") if f.name != "award_data.csv"]
+        
+        # Get list of already processed files from database
+        processed_files = set()
+        if contract_exists:
+            existing_contract_count = db.query(models.Contract).count()
+            
+            # More accurate detection: based on actual file sizes, estimate ~4500 contracts per file
+            actual_contracts_per_file = 4500  # Conservative estimate based on real data
+            expected_total = len(csv_files) * actual_contracts_per_file
+            
+            # Only process if we have significantly fewer contracts than expected
+            # Use 80% threshold to account for variation in file sizes
+            if existing_contract_count < expected_total * 0.8:
+                console.print(f"[yellow]🔍 Detected potential new contract files ({existing_contract_count:,} contracts vs {len(csv_files)} files)[/yellow]")
+                new_files_detected = True
+            else:
+                console.print(f"[green]✅ Contract data appears complete ({existing_contract_count:,} contracts from {len(csv_files)} files)[/green]")
+                new_files_detected = False
+        else:
+            new_files_detected = True
+            
+        if new_files_detected and csv_files:
             console.print("[bold blue]🔍 Phase 1b: Loading contract data...[/bold blue]")
             
             # Load contract data from CSV files
@@ -297,7 +319,7 @@ def bulk_process(
                 
             else:
                 console.print("⚠️  No contract CSV files found", style="yellow")
-        else:
+        elif contract_exists and not new_files_detected:
             latest_contract_meta = (
                 db.query(models.Contract.agency, models.Contract.created_at)
                 .order_by(models.Contract.created_at.desc())
@@ -307,8 +329,10 @@ def bulk_process(
             latest_agency = (latest_agency or "unknown agency")
             contract_created_display = contract_created_at.isoformat() if contract_created_at else "unknown time"
             console.print(
-                f"[dim]⏭️  Contract records already present (latest agency: {latest_agency} at {contract_created_display}). Skipping Phase 1b.[/dim]"
+                f"[dim]⏭️  Contract data up to date ({db.query(models.Contract).count():,} contracts, latest: {latest_agency}). Skipping Phase 1b.[/dim]"
             )
+        else:
+            console.print("⚠️  No contract CSV files found for processing", style="yellow")
         
         console.print()
         

@@ -11,6 +11,24 @@ import multiprocessing as mp
 from typing import List, Dict, Any, Tuple
 import os
 
+def _has_date_mismatch(contract) -> bool:
+    """Check if contract has suspicious PIID/date mismatch."""
+    import re
+    
+    if not contract.piid or not contract.start_date:
+        return False
+        
+    # Extract year from PIID
+    year_match = re.search(r'20\d{2}', contract.piid)
+    if not year_match:
+        return False
+        
+    piid_year = int(year_match.group())
+    contract_year = contract.start_date.year
+    
+    # Flag contracts with >2 year difference as suspicious
+    return abs(piid_year - contract_year) > 2
+
 def process_award_chunk(payload: Tuple[List[str], int]) -> Tuple[List[Dict[str, Any]], int]:
     """Process a chunk of award IDs and return detection data for bulk insert."""
     award_ids, expected_count = payload
@@ -30,6 +48,10 @@ def process_award_chunk(payload: Tuple[List[str], int]) -> Tuple[List[Dict[str, 
             candidate_contracts = heuristics.find_candidate_contracts(db, award)
             
             for contract in candidate_contracts:
+                # Data quality filter: Skip contracts with PIID/date mismatches
+                if _has_date_mismatch(contract):
+                    continue
+                    
                 score = scoring.score_transition(award, contract)
                 confidence = scoring.get_confidence_level(score)
 
