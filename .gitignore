@@ -72,23 +72,30 @@ dmypy.json
 *.sqlite
 *.sqlite3
 
-# Large data files
+# Large data files and directories
 data/*.csv
 data/*.json
 data/*.jsonl
 data/*.xlsx
 data/*.zip
-
-# Keep data directory structure but ignore large files
-!data/README.md
+data/*.db
+data/*.sqlite*
+data_subset/*.csv
+data_subset/*.json
+data_subset/*.jsonl
+data_subset/*.xlsx
+data_subset/*.zip
+test_data/*.csv
+test_data/*.json
+test_data/*.jsonl
+test_data/*.xlsx
+test_data/*.zip
+output/
 
 # Local configuration overrides
 config/local.yaml
 config/custom.yaml
 config/*.local.yaml
-
-# Output directory
-output/
 
 # macOS
 .DS_Store
