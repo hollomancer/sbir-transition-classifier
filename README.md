@@ -278,7 +278,7 @@ poetry run python -m scripts.export_data export-csv-summary --output-path summar
 
 ## License
 
-[Add appropriate license information]
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
