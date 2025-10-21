@@ -100,3 +100,4 @@ config/*.local.yaml
 # macOS
 .DS_Store
 .DS_Store?
+ANALYSIS_RESULTS.md

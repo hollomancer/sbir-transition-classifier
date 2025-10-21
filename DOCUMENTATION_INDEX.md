@@ -46,34 +46,40 @@ This document provides an overview of the consolidated documentation structure f
 - Development and testing usage patterns
 - **Replaces**: `data/README.md`, `data_subset/README.md`, `test_data/README.md`
 
-## Archived Documentation
+### **[SPECIFICATIONS.md](SPECIFICATIONS.md)** - Feature Specifications
+**Status**: ✅ Newly Consolidated
+- Core feature requirements and user stories
+- Data model definitions and API specifications
+- Secondary features (local config, YAML export)
+- **Consolidates**: All content from `specs/` directory (3 feature specs, 20+ files)
 
-### **[docs/archive/](docs/archive/)** - Historical Documentation
-**Contents**: 
-- `specs/` - Feature specification system (3 specs with detailed planning)
-- `.specify/` - Specification templates and configuration
+### **[IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md)** - Development Guide
+**Status**: ✅ Newly Consolidated
+- Quick start and setup instructions
+- Development workflow and implementation phases
+- Configuration management and deployment options
+- **Consolidates**: Implementation tasks and development workflow from specs
 
-**Note**: Archived documentation is preserved for historical reference but not maintained for current usage.
 
 ## Documentation Cleanup Summary
 
-### **Removed Files** (42 total files removed):
+### **Removed Files** (60+ total files removed/consolidated):
 - **24 duplicate AI assistant configs**: `.amazonq/`, `.claude/`, `.codex/` (identical content)
 - **7 consolidated analysis docs**: Architecture, performance, and findings documents
 - **3 data directory READMEs**: Now consolidated into single data guide
 - **2 planning docs**: `GEMINI.md` (minimal content), `IMPLEMENTATION_PLAN.md` (future planning)
-- **18 spec system files**: Moved to archive
+- **25+ spec system files**: Consolidated into SPECIFICATIONS.md and IMPLEMENTATION_GUIDE.md
 
 ### **Files Kept As-Is**:
 - `README.md` - Comprehensive main documentation  
 - `AGENTS.md` - Current repository guidelines
 
 ### **New Structure Benefits**:
-- **Reduced from 60+ to 7 markdown files** in root directory
+- **Reduced from 60+ to 9 markdown files** in root directory
 - **Eliminated duplication** while preserving all important information
-- **Logical organization** by functional area (system, performance, analysis, data)
-- **Preserved historical work** in organized archive
-- **Maintained comprehensive coverage** of all technical and business aspects
+- **Logical organization** by functional area (system, performance, data, specifications, implementation)
+- **Consolidated all spec system work** into accessible documentation
+- **Maintained comprehensive coverage** of all technical, business, and development aspects
 
 ## Quick Reference
 
