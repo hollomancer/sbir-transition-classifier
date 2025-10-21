@@ -89,8 +89,9 @@ This document provides an overview of the consolidated documentation structure f
 | **Contributing code** | AGENTS.md |  
 | **Understanding the system** | SYSTEM_ARCHITECTURE.md |
 | **Performance details** | PERFORMANCE.md |
-| **Business insights** | ANALYSIS_RESULTS.md |
+| **Business insights** | ANALYSIS_RESULTS.md (git ignored) |
 | **Data setup** | DATA_README.md |
-| **Historical context** | docs/archive/ |
+| **Feature specifications** | SPECIFICATIONS.md |
+| **Development workflow** | IMPLEMENTATION_GUIDE.md |
 
 This consolidated structure maintains all essential information while significantly improving navigation and reducing maintenance overhead.
