@@ -1,6 +1,7 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
 *.pyo
 *.pyd
 
@@ -10,94 +11,116 @@ __pycache__/
 # Distribution / packaging
 .Python
 build/
-develop-eggs/
 dist/
 downloads/
 eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
+wheels/
 
-# pyenv
+# pyenv / virtualenv
 .python-version
-
-# venv
-.venv
+.venv/
 venv/
 ENV/
 env/
 env.bak/
 venv.bak/
 
-# Spyder project settings
-.spyderproject
-.spyderworkspace
+# Editor / IDE
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+*.swp
+*.swo
+*~
+*.bak
 
-# Rope project settings
-.ropeproject
+# macOS
+.DS_Store
+.DS_Store?
 
-# mkdocs documentation
-/site
-
-# mypy
+# Test / coverage / caches
+.pytest_cache/
 .mypy_cache/
 .dmypy.json
 dmypy.json
-
-# pytest
-.pytest_cache/
 .coverage
-.cache
+coverage.xml
+htmlcov/
+.cache/
+.hypothesis/
 
-# Environments
+# Environments / secrets
 .env
 .env.*
+secrets.*
+*.pem
+*.key
 
-# IDEs
-.vscode/
-.idea/
-*.swp
-*.swo
+# Logs
+*.log
+logs/
+log/
 
-# SQLite database files
+# SQLite and database artifacts (do not commit DBs)
 *.db
 *.sqlite
 *.sqlite3
+*.sqlite3-journal
 
-# Large data files and directories
-data/*.csv
-data/*.json
-data/*.jsonl
-data/*.xlsx
-data/*.zip
-data/*.db
-data/*.sqlite*
-data_subset/*.csv
-data_subset/*.json
-data_subset/*.jsonl
-data_subset/*.xlsx
-data_subset/*.zip
-test_data/*.csv
-test_data/*.json
-test_data/*.jsonl
-test_data/*.xlsx
-test_data/*.zip
+# Large data files and directories (keep big inputs out of repo)
+# If small fixtures are needed for tests, move them to tests/fixtures and keep lightweight.
+data/
+data_subset/
+test_data/
+test_results/
 output/
+reports/
 
 # Local configuration overrides
 config/local.yaml
 config/custom.yaml
 config/*.local.yaml
 
-# macOS
-.DS_Store
-.DS_Store?
-ANALYSIS_RESULTS.md
+# Documentation build outputs
+/site
+docs/build/
+docs/.cache/
+site/
+
+# Tooling / local caches
+.gemini/
+.vfs/
+tmp/
+temp/
+*.tmp
+
+# OS / tooling artifacts
+Thumbs.db
+ehthumbs.db
+
+# Project-specific generated files to ignore
+test_detections.jsonl
+test_detections_summary.csv
+sbir_classifier.db
+sbir_transitions.db
+
+# Safety: ignore any accidental binary or large files
+*.zip
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+*.exe
+*.dll
+*.so
+
+# Python packaging lockfiles (if using Poetry)
+poetry.lock
+
+# Misc
+coverage/
