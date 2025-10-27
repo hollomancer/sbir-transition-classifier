@@ -2,179 +2,111 @@
 """
 Local database setup script for SBIR transition classifier.
 
-Creates and initializes SQLite database for local execution.
+This script uses SQLAlchemy to create the project's schema on the target
+database engine instead of emitting raw SQL via sqlite3. It avoids manipulating
+sys.path and imports the package modules directly.
+
+Usage:
+    # Use configured default DB URL (from pydantic settings in package)
+    python scripts/setup_local_db.py
+
+    # Provide a custom SQLAlchemy URL
+    python scripts/setup_local_db.py --db-url sqlite:///./data/local.db
 """
 
-import sys
+from __future__ import annotations
+
 import os
 from pathlib import Path
+from typing import Optional
 
-# Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-
+import click
 from loguru import logger
-import sqlite3
-from datetime import datetime
+from sqlalchemy import create_engine
+from sqlalchemy.pool import NullPool
+
+# Import package models / settings
+from sbir_transition_classifier.core import models
+from sbir_transition_classifier.core.config import settings
 
 
-def create_local_database(db_path: Path) -> bool:
+def _ensure_sqlite_dirs(db_url: str) -> None:
     """
-    Create local SQLite database with required tables.
-    
-    Args:
-        db_path: Path to SQLite database file
-        
-    Returns:
-        True if successful, False otherwise
+    Ensure parent directories for local sqlite file exist when given a sqlite URL.
+    This accepts forms like:
+      - sqlite:///relative/path/to/db.db
+      - sqlite:////absolute/path/to/db.db
     """
-    try:
-        # Ensure directory exists
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Connect to database (creates if doesn't exist)
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        
-        # Create vendors table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS vendors (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
-        # Create vendor_identifiers table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS vendor_identifiers (
-                id TEXT PRIMARY KEY,
-                vendor_id TEXT NOT NULL,
-                identifier_type TEXT NOT NULL,
-                identifier_value TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (vendor_id) REFERENCES vendors (id)
-            )
-        """)
-        
-        # Create sbir_awards table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS sbir_awards (
-                id TEXT PRIMARY KEY,
-                vendor_id TEXT NOT NULL,
-                award_piid TEXT NOT NULL,
-                phase TEXT NOT NULL,
-                agency TEXT NOT NULL,
-                award_date TIMESTAMP NOT NULL,
-                completion_date TIMESTAMP NOT NULL,
-                topic TEXT,
-                raw_data TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (vendor_id) REFERENCES vendors (id)
-            )
-        """)
-        
-        # Create contracts table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS contracts (
-                id TEXT PRIMARY KEY,
-                vendor_id TEXT NOT NULL,
-                piid TEXT NOT NULL,
-                parent_piid TEXT,
-                agency TEXT NOT NULL,
-                start_date TIMESTAMP NOT NULL,
-                naics_code TEXT,
-                psc_code TEXT,
-                competition_details TEXT,
-                raw_data TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (vendor_id) REFERENCES vendors (id)
-            )
-        """)
-        
-        # Create detections table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS detections (
-                id TEXT PRIMARY KEY,
-                sbir_award_id TEXT NOT NULL,
-                contract_id TEXT NOT NULL,
-                likelihood_score REAL NOT NULL,
-                confidence TEXT NOT NULL,
-                evidence_bundle TEXT,
-                config_version TEXT,
-                local_session_id TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (sbir_award_id) REFERENCES sbir_awards (id),
-                FOREIGN KEY (contract_id) REFERENCES contracts (id)
-            )
-        """)
-        
-        # Create detection_sessions table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS detection_sessions (
-                session_id TEXT PRIMARY KEY,
-                config_used TEXT NOT NULL,
-                config_checksum TEXT NOT NULL,
-                input_datasets TEXT NOT NULL,
-                start_time TIMESTAMP NOT NULL,
-                end_time TIMESTAMP,
-                status TEXT NOT NULL,
-                output_path TEXT NOT NULL,
-                detection_count INTEGER DEFAULT 0,
-                error_message TEXT
-            )
-        """)
-        
-        # Create evidence_bundle_artifacts table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS evidence_bundle_artifacts (
-                bundle_id TEXT PRIMARY KEY,
-                session_id TEXT NOT NULL,
-                detection_id TEXT NOT NULL,
-                file_path TEXT NOT NULL,
-                summary_path TEXT NOT NULL,
-                created_at TIMESTAMP NOT NULL,
-                file_size INTEGER NOT NULL,
-                evidence_type TEXT NOT NULL,
-                FOREIGN KEY (session_id) REFERENCES detection_sessions (session_id),
-                FOREIGN KEY (detection_id) REFERENCES detections (id)
-            )
-        """)
-        
-        # Create indexes for performance
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_vendor_identifiers_value ON vendor_identifiers (identifier_value)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_sbir_awards_piid ON sbir_awards (award_piid)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_contracts_piid ON contracts (piid)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_detections_session ON detections (local_session_id)")
-        
-        conn.commit()
-        conn.close()
-        
-        logger.info(f"Successfully created local database at {db_path}")
-        return True
-        
-    except Exception as e:
-        logger.error(f"Failed to create local database: {e}")
-        return False
+    if not db_url.startswith("sqlite"):
+        return
 
-
-def main():
-    """Main entry point."""
-    # Default database location
-    db_path = Path.cwd() / "data" / "local.db"
-    
-    # Parse command line arguments
-    if len(sys.argv) > 1:
-        db_path = Path(sys.argv[1])
-    
-    logger.info(f"Setting up local database at {db_path}")
-    
-    if create_local_database(db_path):
-        logger.info("Local database setup completed successfully")
-        print(f"Database created at: {db_path}")
+    # Trim prefix (handle 3 or 4 slashes)
+    path = db_url.split("sqlite://", 1)[1]
+    # Remove a leading slash from relative URLs created with triple slashes
+    if path.startswith("/"):
+        # for sqlite:///relative/path -> path starts with /
+        # but we want to treat triple-slash as relative to cwd only when three slashes used.
+        # Simpler: treat the remaining string as a filesystem path possibly starting with /
+        file_path = Path(path)
     else:
-        logger.error("Local database setup failed")
-        sys.exit(1)
+        file_path = Path(path)
+
+    parent = file_path.parent
+    if str(parent) and not parent.exists():
+        parent.mkdir(parents=True, exist_ok=True)
+        logger.debug(f"Created parent directory for sqlite DB: {parent}")
+
+
+def _make_engine(db_url: str):
+    """
+    Create a SQLAlchemy engine appropriate for the URL. For SQLite, set
+    check_same_thread=False and use NullPool to avoid forking/pooling issues.
+    """
+    if db_url.startswith("sqlite"):
+        # Ensure directory exists for file-based sqlite
+        _ensure_sqlite_dirs(db_url)
+        engine = create_engine(
+            db_url,
+            connect_args={"check_same_thread": False},
+            poolclass=NullPool,
+            pool_pre_ping=True,
+        )
+    else:
+        engine = create_engine(
+            db_url, pool_size=10, max_overflow=20, pool_pre_ping=True
+        )
+    return engine
+
+
+@click.command()
+@click.option(
+    "--db-url",
+    default=None,
+    help="SQLAlchemy database URL to initialize. If omitted, uses package default.",
+)
+def main(db_url: Optional[str]):
+    """Create database schema using SQLAlchemy metadata."""
+    # Configure loguru to print to console
+    logger.remove()
+    logger.add(lambda msg: click.echo(msg, err=False), level="INFO")
+
+    target_url = db_url or settings.DATABASE_URL
+    logger.info(f"Initializing database for URL: {target_url}")
+
+    try:
+        engine = _make_engine(target_url)
+
+        # Create all tables using the package's Base metadata
+        # models.Base is the ORM base imported from sbir_transition_classifier.core.models
+        models.Base.metadata.create_all(bind=engine)
+
+        logger.info("Database schema created successfully.")
+        click.echo(f"✅ Database initialized at: {target_url}")
+
+    except Exception as exc:  # pragma: no cover - operational error handling
+        logger.error(f"Failed to initialize database: {exc}")
+        click.echo(f"❌ Database setup failed: {exc}", err=True)
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

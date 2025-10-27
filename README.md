@@ -6,7 +6,7 @@ A command-line tool to detect untagged SBIR Phase III transitions by analyzing f
 
 This system is intended to process bulk federal spending data using a combination of heuristics and machine learning to identify potential SBIR Phase III transitions. The primary goal is to create a reliable, auditable process for identifying SBIR commercialization that is not officially flagged through comprehensive data analysis and export capabilities.
 
-But it's not done yet, so don't get crazy.
+But it's not done yet. See `docs/IMPLEMENTATION_GUIDE.md` for a development playbook, including safe, repeatable steps to purge large files from git history (history-purge procedure) and guidance for collaborators after a history rewrite.
 
 ## Features
 
@@ -57,7 +57,7 @@ But it's not done yet, so don't get crazy.
 poetry run sbir-detect bulk-process --verbose
 
 # Or using the module directly
-poetry run python -m src.sbir_transition_classifier.cli.main bulk-process --verbose
+poetry run python -m sbir_transition_classifier.cli.main bulk-process --verbose
 ```
 
 #### 2. Step-by-Step Processing
@@ -100,8 +100,8 @@ poetry run sbir-detect --help
 - **CLI Framework**: Click
 - **Progress Indicators**: Rich, tqdm
 - **Database**: SQLite
-- **Data Processing**: Pandas, Dask
-- **Machine Learning**: XGBoost, scikit-learn
+- **Data Processing**: Pandas
+- **Machine Learning**: Optional — model training tools are not required for core CLI processing (see `docs/IMPLEMENTATION_GUIDE.md` for model workflows).
 - **Logging**: Loguru
 - **Dependency Management**: Poetry
 

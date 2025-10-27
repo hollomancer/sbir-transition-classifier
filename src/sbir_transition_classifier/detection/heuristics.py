@@ -16,7 +16,7 @@ def _load_runtime_config() -> ConfigSchema:
 
 
 _CONFIG = _load_runtime_config()
-_ELIGIBLE_PHASES = {"Phase I", "Phase II"}
+_ELIGIBLE_PHASES = set(_CONFIG.detection.eligible_phases)
 
 
 def find_candidate_contracts(db: Session, sbir_award: models.SbirAward):

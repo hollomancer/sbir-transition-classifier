@@ -432,13 +432,11 @@ def bulk_process(
         ) as progress:
             # Initialize database
             init_task = progress.add_task("🔄 Initializing database...", total=1)
-            import sys
-            from pathlib import Path
+            # Initialize database using package models/engine (avoid manipulating sys.path)
+            from ..core import models
+            from ..db.database import engine
 
-            sys.path.append(str(Path(__file__).parent.parent.parent.parent))
-            from scripts.load_bulk_data import init_db
-
-            init_db()
+            models.Base.metadata.create_all(bind=engine)
             progress.update(init_task, advance=1)
             logger.info("Database initialized for bulk processing")
 
