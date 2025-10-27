@@ -35,8 +35,13 @@ class ConfigurableDetectionPipeline:
 
         detections = []
 
-        # Determine eligible phases (unified)
-        eligible_phases = ["Phase I", "Phase II"]
+        # Determine eligible phases from config (fallback to defaults)
+        try:
+            from ..config.loader import ConfigLoader
+
+            eligible_phases = ConfigLoader.load_default().detection.eligible_phases
+        except Exception:
+            eligible_phases = ["Phase I", "Phase II"]
 
         # Filter to eligible phases
         eligible_awards = [

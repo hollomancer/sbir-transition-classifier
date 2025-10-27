@@ -22,6 +22,9 @@ detection:
   timing:
     max_months_after_phase2: 24
     min_months_after_phase2: 0
+  eligible_phases:
+    - "Phase I"
+    - "Phase II"
 
 output:
   formats: ["jsonl", "csv"]

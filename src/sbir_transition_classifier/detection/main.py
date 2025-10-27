@@ -173,8 +173,12 @@ def run_full_detection():
     db = SessionLocal()
 
     try:
-        # Determine eligible phases (unified config; default to Phase I and Phase II)
-        eligible_phases = ["Phase I", "Phase II"]
+        from ..config.loader import ConfigLoader
+
+        try:
+            eligible_phases = ConfigLoader.load_default().detection.eligible_phases
+        except Exception:
+            eligible_phases = ["Phase I", "Phase II"]
         console.print(
             f"🔍 Analyzing {', '.join(eligible_phases)} awards...", style="bold blue"
         )
