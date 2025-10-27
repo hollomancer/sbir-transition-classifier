@@ -103,11 +103,14 @@ temp/
 Thumbs.db
 ehthumbs.db
 
-# Project-specific generated files to ignore
-test_detections.jsonl
-test_detections_summary.csv
-sbir_classifier.db
-sbir_transitions.db
+# Project-specific generated files to ignore (top-level only)
+# Use leading slash to scope these ignores to the repository root so fixtures
+# placed under tests/fixtures/ can be committed.
+#/ - indicates top-level path
+/test_detections.jsonl
+/test_detections_summary.csv
+/sbir_classifier.db
+/sbir_transitions.db
 
 # Safety: ignore any accidental binary or large files
 *.zip
