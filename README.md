@@ -35,7 +35,7 @@ But it's not done yet, so don't get crazy.
 
 2. **Run the setup script**:
    ```bash
-   python setup.py
+   poetry install
    ```
    
    Or manually:
@@ -356,8 +356,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Most Common Commands:**
 ```bash
-# Quick setup
-python setup.py
+# Install dependencies
+poetry install
 
 # Quick start (recommended)
 poetry run sbir-detect bulk-process --verbose
