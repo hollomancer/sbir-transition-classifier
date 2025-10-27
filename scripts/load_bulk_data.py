@@ -1,15 +1,10 @@
-import sys
-import os
-
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", "src"))
-
 import pandas as pd
 import uuid
 import resource
 import click
 from sqlalchemy.orm import Session
-from src.sbir_transition_classifier.db.database import SessionLocal, engine
-from src.sbir_transition_classifier.core import models
+from sbir_transition_classifier.db.database import SessionLocal, engine
+from sbir_transition_classifier.core import models
 from loguru import logger
 import time
 from pathlib import Path

@@ -28,27 +28,17 @@ from scripts.export_data import (
 
 
 def load_csv_file(csv_file_info):
-    """Load a single CSV file."""
+    """Load a single CSV file via ContractIngester."""
     csv_file_path, data_dir_parent = csv_file_info
-    import subprocess
+    from ..ingestion import ContractIngester
+    from rich.console import Console
 
-    result = subprocess.run(
-        [
-            "python",
-            "-m",
-            "scripts.load_bulk_data",
-            "load-usaspending-data",
-            "--file-path",
-            str(csv_file_path),
-            "--chunk-size",
-            "50000",
-            "--verbose",
-        ],
-        cwd=str(data_dir_parent),
-        capture_output=False,
-        text=True,
-    )
-    return csv_file_path.name, result.returncode
+    try:
+        ingester = ContractIngester(console=Console(), verbose=False)
+        ingester.ingest(csv_file_path, chunk_size=50000)
+        return csv_file_path.name, 0
+    except Exception:
+        return csv_file_path.name, 1
 
 
 @click.command()
