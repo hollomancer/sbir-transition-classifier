@@ -226,7 +226,7 @@ class SbirIngester(BaseIngester):
                         "award_date": row["award_date"],
                         "completion_date": completion_date,
                         "raw_data": raw_data,
-                        "created_at": pd.Timestamp.now(),
+                        "created_at": pd.Timestamp.now().to_pydatetime(),
                     }
                 )
 

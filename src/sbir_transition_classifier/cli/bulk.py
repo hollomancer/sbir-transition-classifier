@@ -165,9 +165,12 @@ def bulk_process(
         console.print(files_table)
         console.print()
 
-        # Initialize database connection
+        # Initialize database connection and ensure tables exist
         from ..core import models
-        from ..db.database import SessionLocal
+        from ..db.database import SessionLocal, engine
+
+        # Create tables if they don't exist
+        models.Base.metadata.create_all(bind=engine)
 
         db = SessionLocal()
 
@@ -437,15 +440,6 @@ def bulk_process(
             console=console,
         ) as progress:
             # Initialize database
-            init_task = progress.add_task("🔄 Initializing database...", total=1)
-            # Initialize database using package models/engine (avoid manipulating sys.path)
-            from ..core import models
-            from ..db.database import engine
-
-            models.Base.metadata.create_all(bind=engine)
-            progress.update(init_task, advance=1)
-            logger.info("Database initialized for bulk processing")
-
             # Get database state
             db_task = progress.add_task("📊 Checking database state...", total=1)
             db = SessionLocal()

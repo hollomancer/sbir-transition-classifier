@@ -135,7 +135,9 @@ class ContractIngester(BaseIngester):
             still_new = [name for name in new_recipients if name not in vendor_cache]
             if still_new:
                 new_vendors = [
-                    models.Vendor(name=name, created_at=pd.Timestamp.now())
+                    models.Vendor(
+                        name=name, created_at=pd.Timestamp.now().to_pydatetime()
+                    )
                     for name in still_new
                 ]
                 db.add_all(new_vendors)
@@ -161,15 +163,20 @@ class ContractIngester(BaseIngester):
             recipient = str(row.get("recipient_name", "")).strip()
             vendor_id = vendor_cache.get(recipient)
 
+            # Convert start_date to handle NaT properly
+            start_date = pd.to_datetime(
+                row.get("period_of_performance_start_date"), errors="coerce"
+            )
+            if pd.isna(start_date):
+                start_date = None
+
             contracts_data.append(
                 {
-                    "id": uuid.uuid4(),
+                    "id": str(uuid.uuid4()),
                     "vendor_id": vendor_id,
                     "piid": row["unique_piid"],
                     "agency": row["awarding_agency_name"],
-                    "start_date": pd.to_datetime(
-                        row.get("period_of_performance_start_date"), errors="coerce"
-                    ),
+                    "start_date": start_date,
                     "competition_details": {
                         "extent_competed": str(row.get("extent_competed", "")),
                         "type_of_contract_pricing": str(
