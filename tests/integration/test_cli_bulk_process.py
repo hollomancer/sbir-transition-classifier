@@ -34,6 +34,7 @@ def _write_sample_sbir(csv_path: Path) -> None:
             "Award Title",
             "Program",
             "Topic",
+            "Award Year",
         ],
         [
             "Acme Widgets",
@@ -45,6 +46,7 @@ def _write_sample_sbir(csv_path: Path) -> None:
             "Widget Research",
             "SBIR",
             "Widgets",
+            "2022",
         ],
     ]
     with open(csv_path, "w", newline="", encoding="utf-8") as fh:
@@ -99,6 +101,11 @@ def test_cli_bulk_process_end_to_end_smoke():
         data_dir.mkdir(parents=True, exist_ok=True)
         output_dir.mkdir(parents=True, exist_ok=True)
 
+        # Initialize database in the isolated filesystem
+        from sbir_transition_classifier.db.database import Base, engine
+
+        Base.metadata.create_all(bind=engine)
+
         # Write sample CSVs
         award_csv = data_dir / "award_data.csv"
         contract_csv = data_dir / "contracts_1.csv"
@@ -122,7 +129,7 @@ def test_cli_bulk_process_end_to_end_smoke():
         # Basic assertions about CLI execution
         assert (
             result.exit_code == 0
-        ), f"bulk-process failed: {result.exception}\n{result.output}"
+        ), f"bulk-process failed: {result.exit_code}\n{result.output}"
 
         # Check for expected artifacts: any jsonl/csv in output dir or the sqlite DB
         exported_files = (

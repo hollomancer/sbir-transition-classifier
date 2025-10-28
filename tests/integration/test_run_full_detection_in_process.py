@@ -82,6 +82,7 @@ def _write_sample_sbir_csv(path: Path):
             "Award Title",
             "Program",
             "Topic",
+            "Award Year",
         ],
         # A single Phase II award; award number present in Award Number column
         [
@@ -94,6 +95,7 @@ def _write_sample_sbir_csv(path: Path):
             "Widget Research",
             "SBIR",
             "Widgets",
+            "2022",
         ],
     ]
     with open(path, "w", newline="", encoding="utf-8") as fh:
