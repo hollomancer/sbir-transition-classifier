@@ -4,7 +4,7 @@ import click
 from pathlib import Path
 from rich.console import Console
 
-from ..data.cleaning import DataCleaner, create_sample_files_robust
+# Lazy imports moved into command functions to avoid import-time failures
 
 console = Console()
 
@@ -36,6 +36,8 @@ def create_test_data(data_dir: str, test_dir: str, sample_size: int):
     console.print(f"📁 Output directory: {test_path}")
     console.print(f"📊 Sample size: {sample_size:,} rows per file")
 
+    from sbir_transition_classifier.data.cleaning import create_sample_files_robust
+
     sample_files = create_sample_files_robust(data_path, sample_size)
 
     # Move samples to test directory
@@ -65,6 +67,8 @@ def clean_file(input_file: str, output_file: str, sample_size: int):
     output_path = Path(output_file) if output_file else None
 
     console.print(f"🧹 Cleaning {input_path}")
+
+    from sbir_transition_classifier.data.cleaning import DataCleaner
 
     cleaner = DataCleaner()
 
