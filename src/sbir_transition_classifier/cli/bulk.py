@@ -19,7 +19,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from ..detection.main import run_full_detection
-from ..data.hygiene import create_sample_files_robust
+from ..data.cleaning import create_sample_files_robust
 from .export import (
     export_jsonl as export_jsonl_cmd,
     export_csv_summary as export_csv_summary_cmd,

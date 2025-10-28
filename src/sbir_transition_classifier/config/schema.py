@@ -1,9 +1,13 @@
-"""Configuration schema definitions using Pydantic."""
+"""Configuration schema definitions using Pydantic.
 
-from typing import List, Literal, Optional
+This module consolidates configuration schema, defaults, and validation logic.
+"""
 
+from pathlib import Path
+from typing import List, Literal, Optional, Dict, Any, Union
 
-from pydantic import BaseModel, Field, validator
+import yaml
+from pydantic import BaseModel, Field, validator, ValidationError
 
 
 class ThresholdsConfig(BaseModel):
@@ -187,3 +191,310 @@ class ConfigSchema(BaseModel):
 
         extra = "forbid"  # Reject unknown fields
         validate_assignment = True  # Validate on assignment
+
+
+# ============================================================================
+# DEFAULT CONFIGURATION TEMPLATES
+# ============================================================================
+
+
+class DefaultConfig:
+    """Provides default configuration templates."""
+
+    @staticmethod
+    def get_default_dict() -> Dict[str, Any]:
+        """Get default configuration as dictionary."""
+        config = ConfigSchema()
+        return config.dict()
+
+    @staticmethod
+    def get_default_yaml() -> str:
+        """Get default configuration as YAML string."""
+        config_dict = DefaultConfig.get_default_dict()
+        return yaml.dump(config_dict, default_flow_style=False, sort_keys=False)
+
+    @staticmethod
+    def write_default_config(output_path: Path) -> None:
+        """
+        Write default configuration to file.
+
+        Args:
+            output_path: Path where to write the configuration
+        """
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        yaml_content = DefaultConfig.get_default_yaml()
+
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(yaml_content)
+
+    @staticmethod
+    def get_high_precision_template() -> Dict[str, Any]:
+        """Get high-precision configuration template."""
+        config = ConfigSchema()
+
+        # Modify for high precision
+        config.detection.thresholds.high_confidence = 0.90
+        config.detection.thresholds.likely_transition = 0.80
+        config.detection.weights.sole_source_bonus = 0.3
+        config.detection.weights.agency_continuity = 0.4
+        config.detection.weights.text_similarity = 0.05
+        config.detection.features.enable_cross_service = False
+        config.detection.features.enable_competed_contracts = False
+        config.detection.timing.max_months_after_phase2 = 18
+
+        return config.dict()
+
+    @staticmethod
+    def get_broad_discovery_template() -> Dict[str, Any]:
+        """Get broad discovery configuration template."""
+        config = ConfigSchema()
+
+        # Modify for broad discovery
+        config.detection.thresholds.high_confidence = 0.70
+        config.detection.thresholds.likely_transition = 0.50
+        config.detection.weights.timing_weight = 0.2
+        config.detection.weights.text_similarity = 0.15
+        config.detection.features.enable_text_analysis = True
+        config.detection.timing.max_months_after_phase2 = 36
+        config.output.formats = ["jsonl", "csv", "excel"]
+
+        return config.dict()
+
+    @staticmethod
+    def write_template(template_name: str, output_path: Path) -> None:
+        """
+        Write configuration template to file.
+
+        Args:
+            template_name: Name of template ('default', 'high-precision', 'broad-discovery')
+            output_path: Path where to write the configuration
+        """
+        if template_name == "default":
+            config_dict = DefaultConfig.get_default_dict()
+        elif template_name == "high-precision":
+            config_dict = DefaultConfig.get_high_precision_template()
+        elif template_name == "broad-discovery":
+            config_dict = DefaultConfig.get_broad_discovery_template()
+        else:
+            raise ValueError(f"Unknown template: {template_name}")
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        yaml_content = yaml.dump(config_dict, default_flow_style=False, sort_keys=False)
+
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(yaml_content)
+
+
+# ============================================================================
+# CONFIGURATION VALIDATION
+# ============================================================================
+
+
+class ValidationResult:
+    """Result of configuration validation."""
+
+    def __init__(
+        self, valid: bool, errors: List[str] = None, warnings: List[str] = None
+    ):
+        self.valid = valid
+        self.errors = errors or []
+        self.warnings = warnings or []
+
+    def __bool__(self) -> bool:
+        return self.valid
+
+    def add_error(self, error: str):
+        """Add validation error."""
+        self.errors.append(error)
+        self.valid = False
+
+    def add_warning(self, warning: str):
+        """Add validation warning."""
+        self.warnings.append(warning)
+
+
+class ConfigValidator:
+    """Validates configuration files and provides detailed error reporting."""
+
+    @staticmethod
+    def validate_file(config_path: Union[str, Path]) -> ValidationResult:
+        """
+        Validate configuration file.
+
+        Args:
+            config_path: Path to configuration file
+
+        Returns:
+            ValidationResult with detailed error information
+        """
+        result = ValidationResult(valid=True)
+        config_path = Path(config_path)
+
+        # Check file existence
+        if not config_path.exists():
+            result.add_error(f"Configuration file not found: {config_path}")
+            return result
+
+        if not config_path.is_file():
+            result.add_error(f"Path is not a file: {config_path}")
+            return result
+
+        # Check YAML syntax
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                raw_config = yaml.safe_load(f)
+        except yaml.YAMLError as e:
+            result.add_error(f"Invalid YAML syntax: {e}")
+            return result
+        except Exception as e:
+            result.add_error(f"Failed to read file: {e}")
+            return result
+
+        if raw_config is None:
+            result.add_error("Configuration file is empty")
+            return result
+
+        # Validate schema
+        try:
+            ConfigSchema(**raw_config)
+        except ValidationError as e:
+            for error in e.errors():
+                field = ".".join(str(loc) for loc in error["loc"])
+                message = error["msg"]
+                value = error.get("input", "N/A")
+
+                # Provide helpful error messages
+                if "ensure this value is greater than or equal to" in message:
+                    min_val = message.split(
+                        "ensure this value is greater than or equal to "
+                    )[1]
+                    result.add_error(
+                        f"{field}: Value must be >= {min_val} (got: {value})"
+                    )
+                elif "ensure this value is less than or equal to" in message:
+                    max_val = message.split(
+                        "ensure this value is less than or equal to "
+                    )[1]
+                    result.add_error(
+                        f"{field}: Value must be <= {max_val} (got: {value})"
+                    )
+                elif "unexpected value" in message:
+                    result.add_error(f"{field}: Invalid value '{value}'. {message}")
+                else:
+                    result.add_error(f"{field}: {message} (got: {value})")
+
+        # Additional semantic validation
+        if result.valid:
+            try:
+                from .loader import ConfigLoader, ConfigLoadError
+
+                config = ConfigLoader.load_from_file(config_path)
+                ConfigValidator._validate_semantic_rules(config, result)
+            except ConfigLoadError:
+                pass  # Already handled above
+
+        return result
+
+    @staticmethod
+    def validate_dict(config_dict: dict) -> ValidationResult:
+        """
+        Validate configuration dictionary.
+
+        Args:
+            config_dict: Configuration as dictionary
+
+        Returns:
+            ValidationResult with detailed error information
+        """
+        result = ValidationResult(valid=True)
+
+        try:
+            config = ConfigSchema(**config_dict)
+            ConfigValidator._validate_semantic_rules(config, result)
+        except ValidationError as e:
+            for error in e.errors():
+                field = ".".join(str(loc) for loc in error["loc"])
+                message = error["msg"]
+                value = error.get("input", "N/A")
+                result.add_error(f"{field}: {message} (got: {value})")
+
+        return result
+
+    @staticmethod
+    def _validate_semantic_rules(config: ConfigSchema, result: ValidationResult):
+        """Validate semantic rules not covered by Pydantic."""
+
+        # Check threshold ordering
+        if (
+            config.detection.thresholds.likely_transition
+            > config.detection.thresholds.high_confidence
+        ):
+            result.add_error(
+                f"likely_transition threshold ({config.detection.thresholds.likely_transition}) "
+                f"must be <= high_confidence threshold ({config.detection.thresholds.high_confidence})"
+            )
+
+        # Check timing ordering
+        if (
+            config.detection.timing.min_months_after_phase2
+            >= config.detection.timing.max_months_after_phase2
+        ):
+            result.add_error(
+                f"min_months_after_phase2 ({config.detection.timing.min_months_after_phase2}) "
+                f"must be < max_months_after_phase2 ({config.detection.timing.max_months_after_phase2})"
+            )
+
+        # Warnings for potentially problematic configurations
+        if config.detection.thresholds.high_confidence < 0.5:
+            result.add_warning(
+                "High confidence threshold is very low (<0.5), may produce many false positives"
+            )
+
+        if config.detection.timing.max_months_after_phase2 > 48:
+            result.add_warning(
+                "Search window is very long (>48 months), may impact performance"
+            )
+
+        if (
+            not config.detection.features.enable_cross_service
+            and not config.detection.features.enable_competed_contracts
+        ):
+            result.add_warning(
+                "Both cross-service and competed contracts disabled, detection scope is very narrow"
+            )
+
+    @staticmethod
+    def get_validation_summary(result: ValidationResult) -> str:
+        """Get human-readable validation summary."""
+        if result.valid:
+            summary = "✓ Configuration is valid"
+            if result.warnings:
+                summary += f" ({len(result.warnings)} warnings)"
+        else:
+            summary = f"✗ Configuration is invalid ({len(result.errors)} errors"
+            if result.warnings:
+                summary += f", {len(result.warnings)} warnings"
+            summary += ")"
+
+        return summary
+
+    @staticmethod
+    def format_errors_and_warnings(result: ValidationResult) -> str:
+        """Format errors and warnings for display."""
+        lines = []
+
+        if result.errors:
+            lines.append("Errors:")
+            for error in result.errors:
+                lines.append(f"  • {error}")
+
+        if result.warnings:
+            if lines:
+                lines.append("")
+            lines.append("Warnings:")
+            for warning in result.warnings:
+                lines.append(f"  • {warning}")
+
+        return "\n".join(lines)
