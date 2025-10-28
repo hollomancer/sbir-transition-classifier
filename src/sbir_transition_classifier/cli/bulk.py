@@ -19,7 +19,17 @@ from rich.panel import Panel
 from rich.table import Table
 
 from ..detection.main import run_full_detection
-from ..data.cleaning import create_sample_files_robust
+
+
+# Lazy import wrapper to avoid import-time dependency issues
+def create_sample_files_robust(*args, **kwargs):
+    from sbir_transition_classifier.data.cleaning import (
+        create_sample_files_robust as _impl,
+    )
+
+    return _impl(*args, **kwargs)
+
+
 from .export import (
     export_jsonl as export_jsonl_cmd,
     export_csv_summary as export_csv_summary_cmd,
