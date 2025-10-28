@@ -546,6 +546,33 @@ def test_contract_ingestion_validates_piid():
 ## Appendix: Test Coverage by File
 
 ### Legend
+
+## Integration and E2E Testing
+
+This section consolidates our end-to-end (E2E) testing guidance, superseding the standalone E2E_TEST_ASSESSMENT.md document.
+
+Scope:
+- Full CLI paths: data → ingestion → detection → export
+- Database isolation using a temporary SQLite database per test
+- Minimal, realistic CSV fixtures with correct headers and types
+- Deterministic assertions that avoid flakiness
+
+Patterns and best practices:
+- Use click.testing.CliRunner with isolated_filesystem for end-to-end CLI tests.
+- Swap sbir_transition_classifier.db.database.engine and SessionLocal to a test engine/session per test; restore originals in a finally block to ensure isolation.
+- Prefer validating outputs by structure and schema over byte-for-byte equality:
+  - JSONL: ensure each line is valid JSON and expected keys are present
+  - CSV: validate headers, row counts, and sample rows rather than entire contents
+- Use “in-process” or single-process execution flags for tests that would otherwise use multiprocessing to improve determinism and speed.
+- Avoid network calls; seed any inputs locally and keep tests hermetic.
+
+Performance notes:
+- Keep E2E tests small and focused; large workflows belong in performance or integration suites with explicit markers.
+- If timing-sensitive, assert within ranges or use summarized metrics printed by the CLI instead of exact durations.
+
+Migration note:
+- Content previously in docs/E2E_TEST_ASSESSMENT.md is merged here for a single authoritative testing guide.
+- For historical details and rationale, see CHANGELOG.md (E2E testing consolidation entry).
 - ✅ Good coverage (dedicated unit/integration tests)
 - ⚠️ Partial coverage (tested indirectly)
 - ❌ No coverage
