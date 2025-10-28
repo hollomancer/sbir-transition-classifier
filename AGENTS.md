@@ -1,14 +1,14 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-Core code resides in `src/sbir_transition_classifier/`: `detection/` hosts scoring logic, `core/` holds shared settings and models, `data/` defines schemas, and `db/` manages persistence. CLI entry points mirror this layout under `src/sbir_transition_classifier/cli/`. Data utilities live in `scripts/` and should be executed with `python -m scripts.<task>`. Tests are split between `tests/unit/` for isolated components and `tests/integration/` for pipeline coverage. Place large inputs in `data/` and write generated artifacts to `output/`.
+Core code resides in `src/sbir_transition_classifier/`: `detection/` hosts scoring logic, `core/` holds shared settings and models, `data/` defines schemas, and `db/` manages persistence. CLI entry points mirror this layout under `src/sbir_transition_classifier/cli/`. All commands are accessed through the `sbir-detect` CLI. Tests are split between `tests/unit/` for isolated components and `tests/integration/` for pipeline coverage. Place large inputs in `data/` and write generated artifacts to `output/`.
 
 ## Build, Test, and Development Commands
 - `poetry install` – install dependencies for Python 3.11.
 - `poetry shell` – enter the virtualenv for ad-hoc commands.
 - `poetry run sbir-detect bulk-process --verbose` – execute the full detection pipeline with progress reporting.
-- `poetry run python -m scripts.load_bulk_data load-sbir-data --file-path data/awards.csv --verbose` – stage SBIR award extracts from `data/`.
-- `poetry run python -m scripts.export_data export-jsonl --output-path output/results.jsonl` – export detection results for manual review.
+- `poetry run sbir-detect data load-sbir --file-path data/awards.csv --verbose` – stage SBIR award extracts from `data/`.
+- `poetry run sbir-detect export jsonl --output-path output/results.jsonl` – export detection results for manual review.
 
 ## Coding Style & Naming Conventions
 Follow PEP 8 spacing (4 spaces, soft 120-character limit) and prefer descriptive snake_case for modules and functions. Use PascalCase for classes, return structured `loguru` messages instead of `print`, and annotate function signatures with types. Match existing directory names when adding modules (e.g., `detection/features/signal_name.py`) and lean on Rich for interactive console output.

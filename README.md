@@ -179,18 +179,21 @@ poetry run sbir-detect info
 poetry run sbir-detect quick-stats
 ```
 
-### Data Scripts
+### Data Commands
 
 **Load SBIR Data:**
 ```bash
-# Use the package-installed script entry for data loading (package namespace)
-poetry run python -m sbir_transition_classifier.scripts.load_bulk_data load-sbir-data --file-path data/awards.csv --verbose
+# Load SBIR award data
+poetry run sbir-detect data load-sbir --file-path data/awards.csv --verbose
+
+# Load contract data
+poetry run sbir-detect data load-contracts --file-path data/contracts.csv --verbose
 ```
 
 **Export Results:**
 ```bash
-poetry run python -m scripts.export_data export-jsonl --output-path results.jsonl
-poetry run python -m scripts.export_data export-csv-summary --output-path summary.csv
+poetry run sbir-detect export jsonl --output-path results.jsonl
+poetry run sbir-detect export csv --output-path summary.csv
 ```
 
 ## Development
@@ -222,13 +225,13 @@ poetry run pytest
 ### Development Workflow
 ```bash
 # Load sample data
-poetry run python -m scripts.load_bulk_data load-sbir-data --file-path data/sample_awards.csv
+poetry run sbir-detect data load-sbir --file-path data/sample_awards.csv --verbose
 
 # Run detection on small dataset
 poetry run sbir-detect bulk-process --data-dir data/samples --verbose
 
 # Export and review results
-poetry run python -m scripts.export_data export-jsonl --output-path dev_results.jsonl
+poetry run sbir-detect export jsonl --output-path dev_results.jsonl --verbose
 ```
 
 ## Performance
@@ -269,7 +272,7 @@ ls -la ./output/
 ### Manual Step-by-Step Processing
 ```bash
 # Load data with progress tracking
-poetry run python -m scripts.load_bulk_data load-sbir-data \
+poetry run sbir-detect data load-sbir \
   --file-path data/awards.csv \
   --chunk-size 5000 \
   --verbose
@@ -278,8 +281,8 @@ poetry run python -m scripts.load_bulk_data load-sbir-data \
 poetry run sbir-detect quick-stats
 
 # Export results in multiple formats
-poetry run python -m scripts.export_data export-jsonl --output-path detections.jsonl --verbose
-poetry run python -m scripts.export_data export-csv-summary --output-path summary.csv
+poetry run sbir-detect export jsonl --output-path detections.jsonl --verbose
+poetry run sbir-detect export csv --output-path summary.csv
 ```
 
 ## Data Setup
@@ -338,7 +341,10 @@ Place smaller versions of the main data files here for development work:
 
 ```bash
 # Load SBIR data
-poetry run python -m scripts.load_bulk_data load-sbir-data --file-path data/awards.csv --verbose
+poetry run sbir-detect data load-sbir --file-path data/awards.csv --verbose
+
+# Load contract data
+poetry run sbir-detect data load-contracts --file-path data/contracts.csv --verbose
 
 # Run complete pipeline
 poetry run sbir-detect bulk-process --data-dir ./data --verbose
@@ -375,10 +381,12 @@ poetry install
 poetry run sbir-detect bulk-process --verbose
 
 # Manual data loading
-poetry run python -m scripts.load_bulk_data load-sbir-data --file-path data/awards.csv --verbose
+poetry run sbir-detect data load-sbir --file-path data/awards.csv --verbose
+poetry run sbir-detect data load-contracts --file-path data/contracts.csv --verbose
 
 # Export results
-poetry run python -m scripts.export_data export-jsonl --output-path results.jsonl --verbose
+poetry run sbir-detect export jsonl --output-path results.jsonl --verbose
+poetry run sbir-detect export csv --output-path summary.csv
 
 # System status
 poetry run sbir-detect quick-stats
@@ -387,7 +395,7 @@ poetry run sbir-detect quick-stats
 **File Organization:**
 - `data/` - Input CSV files (awards, contracts)
 - `output/` - Generated reports and exports  
-- `scripts/` - Data loading and export utilities
+- `cli/` - Command-line interface modules
 - `src/` - Core application code
 
 **Log Files:**
