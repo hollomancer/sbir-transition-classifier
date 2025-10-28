@@ -27,7 +27,7 @@ from sqlalchemy.pool import NullPool
 
 # Import package models / settings
 from sbir_transition_classifier.core import models
-from sbir_transition_classifier.core.config import settings
+from sbir_transition_classifier.db.config import get_database_config
 
 
 def _ensure_sqlite_dirs(db_url: str) -> None:
@@ -90,7 +90,12 @@ def main(db_url: Optional[str]):
     logger.remove()
     logger.add(lambda msg: click.echo(msg, err=False), level="INFO")
 
-    target_url = db_url or settings.DATABASE_URL
+    # Get database URL from unified config system
+    if db_url:
+        target_url = db_url
+    else:
+        db_config = get_database_config()
+        target_url = db_config.url
     logger.info(f"Initializing database for URL: {target_url}")
 
     try:
