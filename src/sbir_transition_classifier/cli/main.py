@@ -8,14 +8,12 @@ from rich.table import Table
 
 from .run import run
 from .bulk import bulk_process
-from .dual_report import dual_report
 from .validate import validate_config
 from .reset import reset_config, list_templates, show_template
-from .evidence import view_evidence, list_evidence, evidence_report
-from .summary import generate_summary, quick_stats
 from .hygiene import hygiene
 from .data import data
 from .export import export
+from .reports import reports
 
 
 @click.group()
@@ -37,21 +35,16 @@ def main(verbose: bool):
 # Add subcommands
 main.add_command(run)
 main.add_command(bulk_process, name="bulk-process")
-main.add_command(dual_report, name="dual-report")
 main.add_command(validate_config, name="validate-config")
 main.add_command(reset_config, name="reset-config")
 main.add_command(list_templates, name="list-templates")
 main.add_command(show_template, name="show-template")
-main.add_command(view_evidence, name="view-evidence")
-main.add_command(list_evidence, name="list-evidence")
-main.add_command(evidence_report, name="evidence-report")
-main.add_command(generate_summary, name="generate-summary")
-main.add_command(quick_stats, name="quick-stats")
 main.add_command(hygiene)
 
-# Add new command groups
+# Add command groups
 main.add_command(data)
 main.add_command(export)
+main.add_command(reports)
 
 
 @main.command()
@@ -105,7 +98,7 @@ def info():
     tips_table.add_row(
         "sbir-detect bulk-process --verbose", "Run complete detection pipeline"
     )
-    tips_table.add_row("sbir-detect quick-stats", "Show database statistics")
+    tips_table.add_row("sbir-detect reports stats", "Show detection statistics")
     tips_table.add_row("sbir-detect --help", "Show all available commands")
 
     console.print(tips_table)

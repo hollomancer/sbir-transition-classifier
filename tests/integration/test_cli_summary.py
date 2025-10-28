@@ -150,7 +150,7 @@ def test_quick_stats_with_detections(results_dir_with_detections):
 
     result = runner.invoke(
         cli_main,
-        ["quick-stats", "--results-dir", str(results_dir_with_detections)],
+        ["reports", "stats", "--results-dir", str(results_dir_with_detections)],
         catch_exceptions=False,
     )
 
@@ -175,7 +175,7 @@ def test_quick_stats_with_missing_directory():
 
     result = runner.invoke(
         cli_main,
-        ["quick-stats", "--results-dir", "/nonexistent/path"],
+        ["reports", "stats", "--results-dir", "/nonexistent/path"],
         catch_exceptions=True,
     )
 
@@ -189,7 +189,7 @@ def test_quick_stats_with_empty_detections(results_dir_with_empty_detections):
 
     result = runner.invoke(
         cli_main,
-        ["quick-stats", "--results-dir", str(results_dir_with_empty_detections)],
+        ["reports", "stats", "--results-dir", str(results_dir_with_empty_detections)],
         catch_exceptions=False,
     )
 
@@ -207,7 +207,8 @@ def test_generate_summary_text_format(results_dir_with_detections):
         result = runner.invoke(
             cli_main,
             [
-                "generate-summary",
+                "reports",
+                "summary",
                 "--results-dir",
                 str(results_dir_with_detections),
                 "--output",
@@ -239,7 +240,8 @@ def test_generate_summary_markdown_format(results_dir_with_detections):
         result = runner.invoke(
             cli_main,
             [
-                "generate-summary",
+                "reports",
+                "summary",
                 "--results-dir",
                 str(results_dir_with_detections),
                 "--output",
@@ -271,7 +273,8 @@ def test_generate_summary_json_format(results_dir_with_detections):
         result = runner.invoke(
             cli_main,
             [
-                "generate-summary",
+                "reports",
+                "summary",
                 "--results-dir",
                 str(results_dir_with_detections),
                 "--output",
@@ -306,7 +309,8 @@ def test_generate_summary_with_details(results_dir_with_detections):
         result = runner.invoke(
             cli_main,
             [
-                "generate-summary",
+                "reports",
+                "summary",
                 "--results-dir",
                 str(results_dir_with_detections),
                 "--output",
@@ -339,7 +343,8 @@ def test_generate_summary_without_details(results_dir_with_detections):
         result = runner.invoke(
             cli_main,
             [
-                "generate-summary",
+                "reports",
+                "summary",
                 "--results-dir",
                 str(results_dir_with_detections),
                 "--output",
@@ -362,7 +367,8 @@ def test_generate_summary_to_stdout(results_dir_with_detections):
     result = runner.invoke(
         cli_main,
         [
-            "generate-summary",
+            "reports",
+            "summary",
             "--results-dir",
             str(results_dir_with_detections),
             "--format",
@@ -384,7 +390,7 @@ def test_generate_summary_help_message():
 
     result = runner.invoke(
         cli_main,
-        ["generate-summary", "--help"],
+        ["reports", "summary", "--help"],
         catch_exceptions=False,
     )
 
@@ -399,7 +405,7 @@ def test_quick_stats_help_message():
 
     result = runner.invoke(
         cli_main,
-        ["quick-stats", "--help"],
+        ["reports", "stats", "--help"],
         catch_exceptions=False,
     )
 
@@ -418,7 +424,8 @@ def test_generate_summary_invalid_format(results_dir_with_detections):
         result = runner.invoke(
             cli_main,
             [
-                "generate-summary",
+                "reports",
+                "summary",
                 "--results-dir",
                 str(results_dir_with_detections),
                 "--output",
@@ -446,7 +453,8 @@ def test_generate_summary_to_custom_directory(results_dir_with_detections):
         result = runner.invoke(
             cli_main,
             [
-                "generate-summary",
+                "reports",
+                "summary",
                 "--results-dir",
                 str(results_dir_with_detections),
                 "--output",
@@ -472,7 +480,8 @@ def test_generate_summary_with_missing_results_file(empty_results_dir):
         result = runner.invoke(
             cli_main,
             [
-                "generate-summary",
+                "reports",
+                "summary",
                 "--results-dir",
                 str(empty_results_dir),
                 "--output",
@@ -494,7 +503,8 @@ def test_generate_summary_json_to_stdout(results_dir_with_detections):
     result = runner.invoke(
         cli_main,
         [
-            "generate-summary",
+            "reports",
+            "summary",
             "--results-dir",
             str(results_dir_with_detections),
             "--format",
