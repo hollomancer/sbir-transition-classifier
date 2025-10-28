@@ -5,6 +5,9 @@ description = "A tool to detect untagged SBIR Phase III transitions."
 authors = ["Your Name <you@example.com>"]
 license = "MIT"
 readme = "README.md"
+packages = [
+    { include = "sbir_transition_classifier", from = "src" },
+]
 
 [tool.poetry.dependencies]
 python = "^3.11"
