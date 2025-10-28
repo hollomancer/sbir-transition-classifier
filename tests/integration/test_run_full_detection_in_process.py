@@ -146,13 +146,46 @@ def test_run_full_detection_in_process(tmp_path, tmp_sqlite_session):
     _write_sample_sbir_csv(award_csv)
     _write_sample_contract_csv(contract_csv)
 
+    # Verify database is empty before ingestion
+    Session = tmp_sqlite_session
+    session = Session()
+    try:
+        initial_vendor_count = session.query(models.Vendor).count()
+        initial_award_count = session.query(models.SbirAward).count()
+        assert (
+            initial_vendor_count == 0
+        ), f"Database should be empty but has {initial_vendor_count} vendors"
+        assert (
+            initial_award_count == 0
+        ), f"Database should be empty but has {initial_award_count} awards"
+    finally:
+        session.close()
+
     # Instantiate ingesters and run ingestion (they use db_module.SessionLocal which
     # has been swapped to the test session factory by the fixture)
-    sbir_ingester = SbirIngester(verbose=False)
+    sbir_ingester = SbirIngester(verbose=True)
     stats_award = sbir_ingester.ingest(award_csv, chunk_size=1000)
+
+    # Debug output
+    print(f"\n=== SBIR Ingestion Stats ===")
+    print(f"Total rows: {stats_award.total_rows}")
+    print(f"Valid records: {stats_award.valid_records}")
+    print(f"Duplicates skipped: {stats_award.duplicates_skipped}")
+    print(f"Rejection reasons: {stats_award.rejection_reasons}")
+
+    # Check actual database state
+    session = Session()
+    try:
+        final_vendor_count = session.query(models.Vendor).count()
+        final_award_count = session.query(models.SbirAward).count()
+        print(f"Vendors in DB: {final_vendor_count}")
+        print(f"Awards in DB: {final_award_count}")
+    finally:
+        session.close()
+
     assert (
         stats_award.valid_records >= 1
-    ), "SBIR ingester should register at least one valid record"
+    ), f"SBIR ingester should register at least one valid record. Stats: {stats_award}"
 
     contract_ingester = ContractIngester(verbose=False)
     stats_contract = contract_ingester.ingest(contract_csv, chunk_size=1000)
