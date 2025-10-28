@@ -209,6 +209,13 @@ class SbirIngester(BaseIngester):
                 if pd.isna(completion_date):
                     completion_date = None
 
+                # Convert row to dict and ensure all values are JSON-serializable
+                raw_data = row.to_dict()
+                # Convert any Timestamp objects to ISO format strings
+                for key, value in raw_data.items():
+                    if isinstance(value, pd.Timestamp):
+                        raw_data[key] = value.isoformat()
+
                 awards_data.append(
                     {
                         "vendor_id": vendor_id,
@@ -218,7 +225,7 @@ class SbirIngester(BaseIngester):
                         "topic": str(row.get("Topic", "")),
                         "award_date": row["award_date"],
                         "completion_date": completion_date,
-                        "raw_data": row.to_dict(),
+                        "raw_data": raw_data,
                         "created_at": pd.Timestamp.now(),
                     }
                 )

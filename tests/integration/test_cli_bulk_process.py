@@ -112,7 +112,7 @@ def test_cli_bulk_process_end_to_end_smoke():
         _write_sample_sbir(award_csv)
         _write_sample_contract(contract_csv)
 
-        # Run the CLI bulk-process command (quiet to reduce noise)
+        # Run the CLI bulk-process command (with verbose output for debugging)
         result = runner.invoke(
             cli_main,
             [
@@ -121,7 +121,7 @@ def test_cli_bulk_process_end_to_end_smoke():
                 str(data_dir),
                 "--output-dir",
                 str(output_dir),
-                "--quiet",
+                "--verbose",
             ],
             catch_exceptions=False,
         )
@@ -129,7 +129,7 @@ def test_cli_bulk_process_end_to_end_smoke():
         # Basic assertions about CLI execution
         assert (
             result.exit_code == 0
-        ), f"bulk-process failed: {result.exit_code}\n{result.output}"
+        ), f"bulk-process failed: {result.exit_code}\nOutput:\n{result.output}\nException: {result.exception}"
 
         # Check for expected artifacts: any jsonl/csv in output dir or the sqlite DB
         exported_files = (
