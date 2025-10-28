@@ -3,6 +3,7 @@
 Enhanced analysis script with relaxed criteria and larger sample sizes.
 """
 
+import warnings
 import pandas as pd
 from sbir_transition_classifier.db.database import SessionLocal, engine
 from sbir_transition_classifier.core.models import (
@@ -15,6 +16,12 @@ from sbir_transition_classifier.core.models import (
 from sbir_transition_classifier.detection.main import run_full_detection
 from datetime import datetime, timedelta
 import click
+
+warnings.warn(
+    "Direct script invocation is deprecated. Use 'sbir-detect analysis' commands instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 @click.command()

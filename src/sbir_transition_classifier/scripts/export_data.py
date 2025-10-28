@@ -1,3 +1,4 @@
+import warnings
 import json
 import click
 import pandas as pd
@@ -7,6 +8,12 @@ from sbir_transition_classifier.core import models
 from loguru import logger
 import time
 from pathlib import Path
+
+warnings.warn(
+    "Direct script invocation is deprecated. Use 'sbir-detect export jsonl' or 'sbir-detect export csv' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 @click.group()
