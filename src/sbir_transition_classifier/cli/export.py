@@ -12,7 +12,7 @@ from rich.console import Console
 from sqlalchemy.orm import Session
 
 from ..core import models
-from ..db.database import SessionLocal
+from ..db import database as db_module
 
 
 def export_detections_to_jsonl(
@@ -39,7 +39,7 @@ def export_detections_to_jsonl(
     start_time = time.time()
     console.print(f"📤 Exporting detections to {output_path}...")
 
-    db: Session = SessionLocal()
+    db: Session = db_module.SessionLocal()
     try:
         # Get count first for progress tracking
         total_count = db.query(models.Detection).count()
@@ -120,7 +120,7 @@ def export_detections_to_csv(
 
     console.print(f"📤 Exporting detection summary to {output_path}...")
 
-    db: Session = SessionLocal()
+    db: Session = db_module.SessionLocal()
     try:
         # Query all detections with related data
         detections = db.query(models.Detection).all()
