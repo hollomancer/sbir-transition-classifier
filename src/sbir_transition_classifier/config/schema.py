@@ -145,11 +145,38 @@ class OutputConfig(BaseModel):
     )
 
 
+class DatabaseConfig(BaseModel):
+    """Database connection configuration."""
+
+    url: str = Field(
+        default="sqlite:///./sbir_transitions.db",
+        description="SQLAlchemy database connection URL",
+    )
+    echo: bool = Field(default=False, description="Enable SQL query logging")
+    pool_size: int = Field(
+        default=5,
+        ge=1,
+        le=50,
+        description="Database connection pool size (non-SQLite only)",
+    )
+    pool_timeout: int = Field(
+        default=30, ge=1, description="Connection pool timeout in seconds"
+    )
+
+    class Config:
+        """Pydantic configuration."""
+
+        env_prefix = "SBIR_DB_"  # Allow SBIR_DB_URL env var override
+
+
 class ConfigSchema(BaseModel):
     """Complete configuration schema for SBIR transition classifier."""
 
     schema_version: Literal["1.0"] = Field(
         default="1.0", description="Configuration schema version"
+    )
+    database: DatabaseConfig = Field(
+        default_factory=DatabaseConfig, description="Database connection settings"
     )
     ingestion: IngestionConfig = Field(default_factory=IngestionConfig)
     detection: DetectionConfig = Field(default_factory=DetectionConfig)
