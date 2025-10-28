@@ -4,7 +4,7 @@ from loguru import logger
 from rich.table import Table
 from ..core import models
 from . import heuristics, scoring
-from ..db.database import SessionLocal
+from ..db import database as db_module
 import datetime
 import uuid
 import multiprocessing as mp
@@ -36,7 +36,7 @@ def process_award_chunk(
 ) -> Tuple[List[Dict[str, Any]], int]:
     """Process a chunk of award IDs and return detection data for bulk insert."""
     award_ids, expected_count = payload
-    db = SessionLocal()
+    db = db_module.SessionLocal()
     detections_data = []
 
     try:
@@ -175,7 +175,7 @@ def run_full_detection(in_process: bool = False):
     from rich.console import Console
 
     console = Console()
-    db = SessionLocal()
+    db = db_module.SessionLocal()
 
     try:
         from ..config.loader import ConfigLoader

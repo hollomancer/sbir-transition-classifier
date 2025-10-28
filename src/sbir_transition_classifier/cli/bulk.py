@@ -18,7 +18,6 @@ from rich.progress import (
 from rich.panel import Panel
 from rich.table import Table
 
-from ..db.database import SessionLocal
 from ..detection.main import run_full_detection
 from ..data.hygiene import create_sample_files_robust
 from ..scripts.export_data import (
@@ -167,12 +166,12 @@ def bulk_process(
 
         # Initialize database connection and ensure tables exist
         from ..core import models
-        from ..db.database import SessionLocal, engine
+        from ..db import database as db_module
 
-        # Create tables if they don't exist
-        models.Base.metadata.create_all(bind=engine)
+        # Create tables if they don't exist - use db_module.engine to support test swapping
+        models.Base.metadata.create_all(bind=db_module.engine)
 
-        db = SessionLocal()
+        db = db_module.SessionLocal()
 
         # Phase 1: Load CSV Data if needed
         award_exists = db.query(models.SbirAward.id).limit(1).first()
@@ -439,10 +438,9 @@ def bulk_process(
             TimeElapsedColumn(),
             console=console,
         ) as progress:
-            # Initialize database
             # Get database state
             db_task = progress.add_task("📊 Checking database state...", total=1)
-            db = SessionLocal()
+            db = db_module.SessionLocal()
             try:
                 from ..core import models
 
