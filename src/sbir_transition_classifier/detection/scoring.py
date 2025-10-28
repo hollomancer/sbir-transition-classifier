@@ -230,9 +230,18 @@ class ConfigurableScorer:
         competition_details = contract.get("competition_details", {})
 
         if isinstance(competition_details, dict):
-            return competition_details.get("sole_source", False)
+            # Check for boolean sole_source flag
+            if competition_details.get("sole_source", False):
+                return True
 
-        # Check raw data for competition indicators
+            # Check for extent_competed string in competition_details
+            extent_competed = str(
+                competition_details.get("extent_competed", "")
+            ).lower()
+            if "not competed" in extent_competed or "sole source" in extent_competed:
+                return True
+
+        # Check raw data for competition indicators as fallback
         raw_data = contract.get("raw_data", {})
         if isinstance(raw_data, dict):
             extent_competed = str(raw_data.get("extent_competed", "")).lower()
