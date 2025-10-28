@@ -19,6 +19,11 @@ import csv
 from click.testing import CliRunner
 
 from sbir_transition_classifier.cli.main import main as cli_main
+from sbir_transition_classifier.db import database as db_module
+from sbir_transition_classifier.core import models
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import NullPool
 
 
 def _write_sample_sbir(csv_path: Path) -> None:
@@ -104,9 +109,26 @@ def test_cli_bulk_process_end_to_end_smoke():
         # Initialize database in the isolated filesystem
         from sbir_transition_classifier.db.database import Base, engine
 
-        Base.metadata.create_all(bind=engine)
+        # Create a new engine pointing to a database in the isolated filesystem
+        db_url = "sqlite:///./sbir_transitions.db"
+        test_engine = create_engine(
+            db_url, connect_args={"check_same_thread": False}, poolclass=NullPool
+        )
 
-        # Write sample CSVs
+        # Create tables
+        models.Base.metadata.create_all(bind=test_engine)
+
+        # Swap the global engine and SessionLocal to use the test engine
+        original_engine = db_module.engine
+        original_SessionLocal = db_module.SessionLocal
+
+        db_module.engine = test_engine
+        db_module.SessionLocal = sessionmaker(
+            autocommit=False, autoflush=False, bind=test_engine
+        )
+
+        try:
+            # Write sample CSVs
         award_csv = data_dir / "award_data.csv"
         contract_csv = data_dir / "contracts_1.csv"
         _write_sample_sbir(award_csv)
@@ -140,7 +162,11 @@ def test_cli_bulk_process_end_to_end_smoke():
 
         db_file = Path("sbir_transitions.db")
 
-        assert exported_files or db_file.exists(), (
-            "Expected export files in output directory or local SQLite DB to be created; "
-            f"output_dir contents: {list(output_dir.iterdir())}, cwd files: {list(Path('.').glob('*'))}"
-        )
+            assert exported_files or db_file.exists(), (
+                "Expected export files in output directory or local SQLite DB to be created; "
+                f"output_dir contents: {list(output_dir.iterdir())}, cwd files: {list(Path('.').glob('*'))}"
+            )
+        finally:
+            # Restore original engine and SessionLocal
+            db_module.engine = original_engine
+            db_module.SessionLocal = original_SessionLocal
