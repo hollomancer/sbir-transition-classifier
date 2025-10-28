@@ -1,4 +1,5 @@
 # import sys (removed) - no sys.path manipulation required; use package imports instead
+import warnings
 import pandas as pd
 import uuid
 import resource
@@ -20,6 +21,12 @@ from rich.progress import (
 )
 from rich.panel import Panel
 from rich.table import Table
+
+warnings.warn(
+    "Direct script invocation is deprecated. Use 'sbir-detect data load-sbir' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 def init_db():

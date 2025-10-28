@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.11]
+        python-version: ["3.11"]
 
     steps:
       - name: Checkout repository
@@ -26,48 +26,119 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
-          cache: "pip"
 
-      - name: Cache Poetry and pip
+      - name: Cache Poetry installation
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cache/pypoetry
-            ~/.cache/pip
-          key: ${{ runner.os }}-poetry-pip-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock', '**/pyproject.toml') }}
+            ~/.local/share/pypoetry
+            ~/.local/bin/poetry
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
           restore-keys: |
-            ${{ runner.os }}-poetry-pip-${{ matrix.python-version }}-
+            ${{ runner.os }}-poetry-
 
       - name: Install Poetry
         run: |
           python -m pip install --upgrade pip
-          python -m pip install poetry
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Configure Poetry for CI (no venv creation)
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pypoetry/virtualenvs
+          key: ${{ runner.os }}-poetry-deps-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-deps-${{ matrix.python-version }}-
+
+      - name: Install dependencies
         run: |
-          poetry config virtualenvs.create false --local
+          poetry install --no-interaction --no-ansi --with dev
+
+      - name: Verify installation
+        run: |
+          poetry run python --version
+          poetry run pip list
+
+      - name: Initialize test database
+        run: |
+          poetry run python -c "from sbir_transition_classifier.db.database import Base, engine; Base.metadata.create_all(bind=engine)"
+
+      - name: Run unit tests
+        env:
+          PYTHONUNBUFFERED: 1
+        run: |
+          poetry run pytest tests/unit/ -v --tb=short --cov=sbir_transition_classifier --cov-report=xml --cov-report=term-missing
+
+      - name: Run integration tests
+        if: success() || failure()
+        env:
+          PYTHONUNBUFFERED: 1
+        run: |
+          poetry run pytest tests/integration/ -v --tb=short
+
+      - name: Generate coverage report
+        if: always()
+        run: |
+          poetry run coverage report
+          poetry run coverage html
+
+      - name: Upload coverage report as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-${{ matrix.python-version }}
+          path: |
+            coverage.xml
+            htmlcov/
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.python-version }}
+          path: |
+            junit.xml
+            .pytest_cache/
+
+  lint:
+    name: Code quality checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install Poetry
+        run: |
+          python -m pip install --upgrade pip
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Install dependencies
         run: |
           poetry install --no-interaction --no-ansi
 
-      - name: Run tests with coverage
-        env:
-          # Avoid creating PYTHONHASHSEED differences; keep deterministic test runs where needed
-          PYTHONUNBUFFERED: 1
+      - name: Check code formatting
+        if: always()
         run: |
-          poetry run pytest --maxfail=1 --disable-warnings --cov=sbir_transition_classifier --cov-report=xml --cov-report=term-missing
+          poetry run python -m pip install black
+          poetry run black --check src/ tests/ || true
 
-      - name: Upload coverage report
+      - name: Check import sorting
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage.xml
+        run: |
+          poetry run python -m pip install isort
+          poetry run isort --check-only src/ tests/ || true
 
-      - name: Upload test results (JUnit) if produced
+      - name: Type checking
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: pytest-junit
-          path: junit.xml
+        run: |
+          poetry run python -m pip install mypy
+          poetry run mypy src/ --ignore-missing-imports || true

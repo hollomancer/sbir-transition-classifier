@@ -19,5 +19,21 @@ Pytest drives all suites; keep files as `tests/*/test_*.py` with functions named
 ## Commit & Pull Request Guidelines
 Write commits with concise, imperative subjects (e.g., `Add detection signal for competed awards`) and optional explanatory bodies. Pull requests should outline motivation, summarize data or schema impacts, list test commands run, and link issues via `Fixes #123`. Coordinate heavy data migrations or bulk reloads with maintainers before merging.
 
+## Configuration Management
+Use the unified YAML-based configuration system for all settings:
+
+```python
+from sbir_transition_classifier.config import ConfigLoader
+from sbir_transition_classifier.db.config import get_database_config
+
+# Load full config
+config = ConfigLoader.load_from_file("config/custom.yaml")
+
+# Load just database config
+db_config = get_database_config()
+```
+
+DO NOT use `core.config.settings` - it is deprecated and will be removed in v0.2.0.
+
 ## Security & Configuration Tips
-Load secrets through environment variables consumed by `core.settings`. Ensure SBIR and USAspending feeds are scrubbed before copying into `data/`, and avoid committing raw exports. New loaders or exporters must respect existing SQLite migrations and write timestamped outputs under `output/`.
+Load secrets through environment variables or the unified YAML config system. Database settings can be overridden via `SBIR_DB_URL` environment variable. Ensure SBIR and USAspending feeds are scrubbed before copying into `data/`, and avoid committing raw exports. New loaders or exporters must respect existing SQLite migrations and write timestamped outputs under `output/`.
