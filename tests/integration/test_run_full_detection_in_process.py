@@ -24,6 +24,7 @@ from sqlalchemy.pool import NullPool
 
 from sbir_transition_classifier.core import models
 from sbir_transition_classifier.db import database as db_module
+from sbir_transition_classifier.db.database import Base
 from sbir_transition_classifier.ingestion.sbir import SbirIngester
 from sbir_transition_classifier.ingestion.contracts import ContractIngester
 from sbir_transition_classifier.detection.main import run_full_detection
@@ -38,7 +39,19 @@ def tmp_sqlite_session(tmp_path):
         db_url, connect_args={"check_same_thread": False}, poolclass=NullPool
     )
     # Create tables on the test engine
-    models.Base.metadata.create_all(bind=engine)
+    print(f"\n=== Creating tables on test engine ===")
+    print(f"Test engine URL: {engine.url}")
+    print(f"Base from db.database: {Base}")
+    print(f"Base from models: {models.Base}")
+    print(f"Are they the same? {Base is models.Base}")
+    Base.metadata.create_all(bind=engine)
+
+    # Verify tables were created
+    from sqlalchemy import inspect
+
+    inspector = inspect(engine)
+    tables = inspector.get_table_names()
+    print(f"Tables created: {tables}")
     # Create a test session factory
     TestSession = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
@@ -160,6 +173,22 @@ def test_run_full_detection_in_process(tmp_path, tmp_sqlite_session):
         ), f"Database should be empty but has {initial_award_count} awards"
     finally:
         session.close()
+
+    # Verify the swap worked
+    print(f"\n=== Verifying engine swap ===")
+    print(f"db_module.engine URL: {db_module.engine.url}")
+    print(f"db_module.SessionLocal: {db_module.SessionLocal}")
+
+    # Test a direct query to verify connection
+    test_session = db_module.SessionLocal()
+    try:
+        from sqlalchemy import inspect
+
+        inspector = inspect(test_session.bind)
+        tables = inspector.get_table_names()
+        print(f"Tables visible to SessionLocal: {tables}")
+    finally:
+        test_session.close()
 
     # Instantiate ingesters and run ingestion (they use db_module.SessionLocal which
     # has been swapped to the test session factory by the fixture)
