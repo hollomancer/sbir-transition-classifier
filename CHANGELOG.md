@@ -13,6 +13,7 @@ This changelog follows Keep a Changelog conventions.
 - **Ingestion normalization** section in IMPLEMENTATION_GUIDE: documents transforms (whitespace/casing, PIID/date/competition normalization), validation flags (missing_piid, missing_agency, duplicates_skipped), and behavior guidelines for safe defaults.
 - CLI utilities module (`cli/utils.py`): consolidated CliContext, progress tracking, console setup, and shared helpers (format_duration, format_size) to reduce duplication.
 - Database queries module (`db/queries.py`): common query patterns for vendors, SBIR awards, contracts, and detections; includes eager loading guidance, chunked iteration, and aggregate statistics helpers.
+- **Documentation consolidation**: Merged SPECIFICATIONS.md and PERFORMANCE.md into IMPLEMENTATION_GUIDE.md; now serves as comprehensive reference for specs, requirements, performance, and development workflow. Reduced docs/ from 9 to 7 markdown files.
 
 ### Changed
 - CLI `run` command:
@@ -28,6 +29,8 @@ This changelog follows Keep a Changelog conventions.
 
 - Cleanup:
   - Removed unused `detection/data_quality.py` (functions were not called anywhere; data quality checks are now handled by ingestion validation).
+  - Removed standalone `docs/SPECIFICATIONS.md` (content merged into IMPLEMENTATION_GUIDE.md).
+  - Removed standalone `docs/PERFORMANCE.md` (content merged into IMPLEMENTATION_GUIDE.md).
 
 ### Migrated
 - Pydantic v2:

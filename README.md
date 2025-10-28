@@ -1,6 +1,6 @@
 # SBIR Transition Detection System
 
-See Documentation: [docs/README.md](docs/README.md) • [System Architecture](docs/SYSTEM_ARCHITECTURE.md) • [Implementation Guide](docs/IMPLEMENTATION_GUIDE.md) • [Performance](docs/PERFORMANCE.md) • [Testing Strategy](docs/TESTING_STRATEGY.md)
+See Documentation: [docs/README.md](docs/README.md) • [System Architecture](docs/SYSTEM_ARCHITECTURE.md) • [Implementation Guide](docs/IMPLEMENTATION_GUIDE.md) • [Testing Strategy](docs/TESTING_STRATEGY.md)
 
 A command-line tool to detect untagged SBIR Phase III transitions by analyzing federal spending data and identifying potential commercialization patterns.
 

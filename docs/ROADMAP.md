@@ -234,6 +234,7 @@ Acceptance criteria:
 - [x] Create CLI utilities module (cli/utils.py) with CliContext, progress tracking, and shared helpers.
 - [x] Create database queries module (db/queries.py) with common patterns (vendors, awards, contracts, detections).
 - [x] Remove unused detection/data_quality.py (data quality checks now in ingestion validation).
+- [x] Consolidate SPECIFICATIONS.md and PERFORMANCE.md into IMPLEMENTATION_GUIDE.md (reduce docs/ from 9 to 7 files).
 - [ ] Add evidence "why" summary and version field.
 - [ ] Add ingestion metrics logging and summarize per run.
 - [ ] Define signal registry and YAML toggles; add unit tests for each signal.
