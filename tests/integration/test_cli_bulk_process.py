@@ -129,38 +129,38 @@ def test_cli_bulk_process_end_to_end_smoke():
 
         try:
             # Write sample CSVs
-        award_csv = data_dir / "award_data.csv"
-        contract_csv = data_dir / "contracts_1.csv"
-        _write_sample_sbir(award_csv)
-        _write_sample_contract(contract_csv)
+            award_csv = data_dir / "award_data.csv"
+            contract_csv = data_dir / "contracts_1.csv"
+            _write_sample_sbir(award_csv)
+            _write_sample_contract(contract_csv)
 
-        # Run the CLI bulk-process command (with verbose output for debugging)
-        result = runner.invoke(
-            cli_main,
-            [
-                "bulk-process",
-                "--data-dir",
-                str(data_dir),
-                "--output-dir",
-                str(output_dir),
-                "--verbose",
-            ],
-            catch_exceptions=False,
-        )
+            # Run the CLI bulk-process command (with verbose output for debugging)
+            result = runner.invoke(
+                cli_main,
+                [
+                    "bulk-process",
+                    "--data-dir",
+                    str(data_dir),
+                    "--output-dir",
+                    str(output_dir),
+                    "--verbose",
+                ],
+                catch_exceptions=False,
+            )
 
-        # Basic assertions about CLI execution
-        assert (
-            result.exit_code == 0
-        ), f"bulk-process failed: {result.exit_code}\nOutput:\n{result.output}\nException: {result.exception}"
+            # Basic assertions about CLI execution
+            assert (
+                result.exit_code == 0
+            ), f"bulk-process failed: {result.exit_code}\nOutput:\n{result.output}\nException: {result.exception}"
 
-        # Check for expected artifacts: any jsonl/csv in output dir or the sqlite DB
-        exported_files = (
-            list(output_dir.glob("*.jsonl"))
-            + list(output_dir.glob("*.csv"))
-            + list(output_dir.glob("*detections*"))
-        )
+            # Check for expected artifacts: any jsonl/csv in output dir or the sqlite DB
+            exported_files = (
+                list(output_dir.glob("*.jsonl"))
+                + list(output_dir.glob("*.csv"))
+                + list(output_dir.glob("*detections*"))
+            )
 
-        db_file = Path("sbir_transitions.db")
+            db_file = Path("sbir_transitions.db")
 
             assert exported_files or db_file.exists(), (
                 "Expected export files in output directory or local SQLite DB to be created; "
