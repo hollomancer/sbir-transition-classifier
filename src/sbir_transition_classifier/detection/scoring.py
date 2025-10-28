@@ -127,6 +127,19 @@ class ConfigurableScorer:
             if not self._is_sole_source(contract):
                 score *= 0.3  # Heavily penalize competed contracts if disabled
 
+        # Strong penalty for very late contracts (> 365 days after Phase II completion)
+        completion_date = sbir_award.get("completion_date")
+        start_date = contract.get("start_date")
+        if isinstance(completion_date, str):
+            completion_date = pd.to_datetime(completion_date)
+        if isinstance(start_date, str):
+            start_date = pd.to_datetime(start_date)
+        if pd.notna(completion_date) and pd.notna(start_date):
+            days_diff = (start_date - completion_date).days
+            if days_diff > 365:
+                # Apply multiplicative decay and subtractive penalty to ensure score falls below likely threshold
+                score = max(0.0, score * 0.4 - 0.2)
+
         return min(score, 1.0)  # Cap at 1.0
 
     def meets_threshold(self, score: float) -> tuple[bool, str]:
