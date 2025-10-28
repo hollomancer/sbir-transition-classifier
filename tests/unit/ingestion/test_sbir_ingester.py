@@ -14,10 +14,10 @@ from sbir_transition_classifier.core import models
 @pytest.fixture
 def sample_sbir_csv(tmp_path: Path) -> Path:
     """Create a sample SBIR CSV file."""
-    csv_content = """Company,Phase,Agency,Award Number,Proposal Award Date,Contract End Date,Award Title,Program,Topic
-Acme Corp,Phase II,Air Force,FA9550-20-C-0001,2020-01-15,2022-01-14,Widget Research,SBIR,Advanced Widgets
-Beta Inc,Phase I,Navy,N00014-21-C-0001,2021-03-01,2021-09-01,Gadget Development,SBIR,Smart Gadgets
-Gamma LLC,Phase II,Army,W911NF-19-C-0001,2019-06-01,2021-06-01,Sensor Tech,SBIR,Advanced Sensors"""
+    csv_content = """Company,Phase,Agency,Award Number,Proposal Award Date,Contract End Date,Award Title,Program,Topic,Award Year
+Acme Corp,Phase II,Air Force,FA9550-20-C-0001,2020-01-15,2022-01-14,Widget Research,SBIR,Advanced Widgets,2020
+Beta Inc,Phase I,Navy,N00014-21-C-0001,2021-03-01,2021-09-01,Gadget Development,SBIR,Smart Gadgets,2021
+Gamma LLC,Phase II,Army,W911NF-19-C-0001,2019-06-01,2021-06-01,Sensor Tech,SBIR,Advanced Sensors,2019"""
 
     csv_path = tmp_path / "sbir_test.csv"
     csv_path.write_text(csv_content)
@@ -27,8 +27,8 @@ Gamma LLC,Phase II,Army,W911NF-19-C-0001,2019-06-01,2021-06-01,Sensor Tech,SBIR,
 @pytest.fixture
 def minimal_sbir_csv(tmp_path: Path) -> Path:
     """Create a minimal SBIR CSV with just required fields."""
-    csv_content = """Company,Phase,Agency,Award Number,Proposal Award Date,Contract End Date,Award Title,Program,Topic
-TestCo,Phase I,Air Force,TEST-001,2020-01-01,2020-12-31,Test Award,SBIR,Test Topic"""
+    csv_content = """Company,Phase,Agency,Award Number,Proposal Award Date,Contract End Date,Award Title,Program,Topic,Award Year
+TestCo,Phase I,Air Force,TEST-001,2020-01-01,2020-12-31,Test Award,SBIR,Test Topic,2020"""
 
     csv_path = tmp_path / "minimal_sbir.csv"
     csv_path.write_text(csv_content)
@@ -69,8 +69,8 @@ def test_sbir_ingestion_creates_awards(db_session: Session, sample_sbir_csv: Pat
 
 def test_sbir_ingestion_handles_duplicates(db_session: Session, tmp_path: Path):
     """Test that re-ingesting same data doesn't create duplicates."""
-    csv_content = """Company,Phase,Agency,Award Number,Proposal Award Date,Contract End Date,Award Title,Program,Topic
-Acme Corp,Phase II,Air Force,FA9550-20-C-0001,2020-01-15,2022-01-14,Widget Research,SBIR,Advanced Widgets"""
+    csv_content = """Company,Phase,Agency,Award Number,Proposal Award Date,Contract End Date,Award Title,Program,Topic,Award Year
+Acme Corp,Phase II,Air Force,FA9550-20-C-0001,2020-01-15,2022-01-14,Widget Research,SBIR,Advanced Widgets,2020"""
 
     csv_path = tmp_path / "sbir_dup.csv"
     csv_path.write_text(csv_content)

@@ -35,7 +35,7 @@ def test_perfect_match_scores_high(scorer):
         "naics_code": "541712",
     }
 
-    score = scorer.score_transition(award_dict, contract_dict)
+    score = scorer.calculate_likelihood_score(award_dict, contract_dict)
 
     assert score > 0.8  # Should be high confidence
 
@@ -56,7 +56,7 @@ def test_timing_too_late_scores_low(scorer):
         "naics_code": "541712",
     }
 
-    score = scorer.score_transition(award_dict, contract_dict)
+    score = scorer.calculate_likelihood_score(award_dict, contract_dict)
 
     assert score < 0.3  # Should be low due to timing
 
@@ -84,8 +84,8 @@ def test_different_agency_reduces_score(scorer):
         "naics_code": "541712",
     }
 
-    same_score = scorer.score_transition(award_dict, same_agency_contract)
-    diff_score = scorer.score_transition(award_dict, diff_agency_contract)
+    same_score = scorer.calculate_likelihood_score(award_dict, same_agency_contract)
+    diff_score = scorer.calculate_likelihood_score(award_dict, diff_agency_contract)
 
     assert same_score > diff_score
 
@@ -113,8 +113,8 @@ def test_sole_source_increases_score(scorer):
         "naics_code": "541712",
     }
 
-    sole_score = scorer.score_transition(award_dict, sole_source_contract)
-    competed_score = scorer.score_transition(award_dict, competed_contract)
+    sole_score = scorer.calculate_likelihood_score(award_dict, sole_source_contract)
+    competed_score = scorer.calculate_likelihood_score(award_dict, competed_contract)
 
     assert sole_score > competed_score
 
@@ -144,8 +144,8 @@ def test_timing_within_window_scores_higher(scorer):
         "naics_code": "541712",
     }
 
-    near_score = scorer.score_transition(award_dict, near_contract)
-    far_score = scorer.score_transition(award_dict, far_contract)
+    near_score = scorer.calculate_likelihood_score(award_dict, near_contract)
+    far_score = scorer.calculate_likelihood_score(award_dict, far_contract)
 
     assert near_score > far_score
 
@@ -166,7 +166,7 @@ def test_score_range_is_valid(scorer):
         "naics_code": "541712",
     }
 
-    score = scorer.score_transition(award_dict, contract_dict)
+    score = scorer.calculate_likelihood_score(award_dict, contract_dict)
 
     assert 0.0 <= score <= 1.0
 
@@ -195,10 +195,14 @@ def test_custom_config_affects_scoring():
 
     # Default scorer
     default_scorer = ConfigurableScorer(ConfigSchema())
-    default_score = default_scorer.score_transition(award_dict, sole_source_contract)
+    default_score = default_scorer.calculate_likelihood_score(
+        award_dict, sole_source_contract
+    )
 
     # Custom scorer with higher sole source weight
-    custom_score = custom_scorer.score_transition(award_dict, sole_source_contract)
+    custom_score = custom_scorer.calculate_likelihood_score(
+        award_dict, sole_source_contract
+    )
 
     # Custom scorer should give higher score due to higher sole source bonus
     assert custom_score >= default_score
@@ -220,7 +224,7 @@ def test_phase_i_awards_can_be_scored(scorer):
         "naics_code": "541712",
     }
 
-    score = scorer.score_transition(award_dict, contract_dict)
+    score = scorer.calculate_likelihood_score(award_dict, contract_dict)
 
     # Should still produce a valid score
     assert 0.0 <= score <= 1.0
@@ -243,7 +247,7 @@ def test_contract_before_completion_scores_zero(scorer):
         "naics_code": "541712",
     }
 
-    score = scorer.score_transition(award_dict, contract_dict)
+    score = scorer.calculate_likelihood_score(award_dict, contract_dict)
 
     # Should score very low or zero
     assert score < 0.1
@@ -266,5 +270,5 @@ def test_missing_competition_details_handled(scorer):
     }
 
     # Should not raise an error
-    score = scorer.score_transition(award_dict, contract_dict)
+    score = scorer.calculate_likelihood_score(award_dict, contract_dict)
     assert 0.0 <= score <= 1.0

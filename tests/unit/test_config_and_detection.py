@@ -127,9 +127,9 @@ def test_sbir_ingestion_dedupe(tmp_path):
         csv_path.write_text(
             "\n".join(
                 [
-                    "Company,Phase,Agency,Award Number,Proposal Award Date,Contract End Date,Award Title,Program,Topic",
-                    "Acme Widgets,Phase II,Air Force,FA0001,2022-01-01,2022-12-31,Widget Research,SBIR,Widgets",
-                    "Acme Widgets,Phase II,Air Force,FA0001,2022-01-01,2022-12-31,Widget Research,SBIR,Widgets",
+                    "Company,Phase,Agency,Award Number,Proposal Award Date,Contract End Date,Award Title,Program,Topic,Award Year",
+                    "Acme Widgets,Phase II,Air Force,FA0001,2022-01-01,2022-12-31,Widget Research,SBIR,Widgets,2022",
+                    "Acme Widgets,Phase II,Air Force,FA0001,2022-01-01,2022-12-31,Widget Research,SBIR,Widgets,2022",
                 ]
             ),
             encoding="utf-8",
