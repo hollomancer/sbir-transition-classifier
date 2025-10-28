@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import List, Literal, Optional, Dict, Any, Union
 
 import yaml
-from pydantic import BaseModel, Field, validator, ValidationError
+from pydantic import BaseModel, Field, ValidationError, ConfigDict, model_validator
 
 
 class ThresholdsConfig(BaseModel):
@@ -26,14 +26,14 @@ class ThresholdsConfig(BaseModel):
         description="Minimum score for likely transition detection",
     )
 
-    @validator("likely_transition")
-    def validate_threshold_ordering(cls, v, values):
+    @model_validator(mode="after")
+    def validate_threshold_ordering(self):
         """Ensure likely_transition <= high_confidence."""
-        if "high_confidence" in values and v > values["high_confidence"]:
+        if self.likely_transition > self.high_confidence:
             raise ValueError(
                 "likely_transition threshold must be <= high_confidence threshold"
             )
-        return v
+        return self
 
 
 class WeightsConfig(BaseModel):
@@ -85,17 +85,14 @@ class TimingConfig(BaseModel):
         description="Minimum months after Phase II completion to search",
     )
 
-    @validator("min_months_after_phase2")
-    def validate_timing_ordering(cls, v, values):
+    @model_validator(mode="after")
+    def validate_timing_ordering(self):
         """Ensure min_months < max_months."""
-        if (
-            "max_months_after_phase2" in values
-            and v >= values["max_months_after_phase2"]
-        ):
+        if self.min_months_after_phase2 >= self.max_months_after_phase2:
             raise ValueError(
                 "min_months_after_phase2 must be < max_months_after_phase2"
             )
-        return v
+        return self
 
 
 class IngestionConfig(BaseModel):
@@ -103,7 +100,7 @@ class IngestionConfig(BaseModel):
 
     data_formats: List[Literal["csv", "json"]] = Field(
         default=["csv"],
-        min_items=1,
+        min_length=1,
         description="List of supported data formats for ingestion.",
     )
     encoding: str = Field(default="utf-8", description="Encoding for input files.")
@@ -128,7 +125,7 @@ class DetectionConfig(BaseModel):
     timing: TimingConfig = Field(default_factory=TimingConfig)
     eligible_phases: List[Literal["Phase I", "Phase II"]] = Field(
         default=["Phase I", "Phase II"],
-        min_items=1,
+        min_length=1,
         description="SBIR award phases considered eligible for detection",
     )
 
@@ -138,7 +135,7 @@ class OutputConfig(BaseModel):
 
     formats: List[Literal["jsonl", "csv", "excel"]] = Field(
         default=["jsonl", "csv"],
-        min_items=1,
+        min_length=1,
         description="Output file formats to generate",
     )
     include_evidence: bool = Field(
@@ -167,10 +164,7 @@ class DatabaseConfig(BaseModel):
         default=30, ge=1, description="Connection pool timeout in seconds"
     )
 
-    class Config:
-        """Pydantic configuration."""
-
-        env_prefix = "SBIR_DB_"  # Allow SBIR_DB_URL env var override
+    model_config = ConfigDict()
 
 
 class ConfigSchema(BaseModel):
@@ -186,11 +180,7 @@ class ConfigSchema(BaseModel):
     detection: DetectionConfig = Field(default_factory=DetectionConfig)
     output: OutputConfig = Field(default_factory=OutputConfig)
 
-    class Config:
-        """Pydantic configuration."""
-
-        extra = "forbid"  # Reject unknown fields
-        validate_assignment = True  # Validate on assignment
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
 
 # ============================================================================
@@ -205,7 +195,7 @@ class DefaultConfig:
     def get_default_dict() -> Dict[str, Any]:
         """Get default configuration as dictionary."""
         config = ConfigSchema()
-        return config.dict()
+        return config.model_dump()
 
     @staticmethod
     def get_default_yaml() -> str:
@@ -243,7 +233,7 @@ class DefaultConfig:
         config.detection.features.enable_competed_contracts = False
         config.detection.timing.max_months_after_phase2 = 18
 
-        return config.dict()
+        return config.model_dump()
 
     @staticmethod
     def get_broad_discovery_template() -> Dict[str, Any]:
@@ -259,7 +249,7 @@ class DefaultConfig:
         config.detection.timing.max_months_after_phase2 = 36
         config.output.formats = ["jsonl", "csv", "excel"]
 
-        return config.dict()
+        return config.model_dump()
 
     @staticmethod
     def write_template(template_name: str, output_path: Path) -> None:
