@@ -127,8 +127,9 @@ Initial refactor initiative baselined here. The following summarizes the Phase 0
 
 ---
 
-## Historical Sources
-This changelog entry consolidates content from:
+## Historical Sources and Consolidation Status
+This changelog entry consolidates content from and supersedes the following documents:
+
 - PHASE2_SUMMARY.md
 - PHASE3_SUMMARY.md
 - PHASE5_6_SUMMARY.md
@@ -144,4 +145,44 @@ This changelog entry consolidates content from:
 - docs/REFACTORING_QUICK_REF.md
 - docs/REFACTORING_GUIDE.md
 
-> Note: Detailed per-phase metrics, command migration examples, and test matrices remain available in the original phase documents (now referenced here for historical context). As the docs are consolidated, CHANGELOG.md serves as the authoritative historical record, while ROADMAP.md (to be finalized) will capture forward-looking plans.
+Files marked for deletion (superseded by CHANGELOG.md and ROADMAP.md):
+- PHASE2_SUMMARY.md
+- PHASE3_SUMMARY.md
+- PHASE5_6_SUMMARY.md
+- REFACTORING_COMPLETE.md
+- REFACTORING_STATUS.md
+- docs/PHASE_0_SUMMARY.md
+- docs/PHASE1_COMPLETION.md
+- docs/PHASE_1_COMPLETE.md
+- docs/PHASE2_COMPLETION.md
+- docs/PROGRESS_SUMMARY.md
+- docs/REFACTORING_PLAN.md
+- docs/REFACTORING_SUMMARY.md
+- docs/REFACTORING_QUICK_REF.md
+- docs/REFACTORING_GUIDE.md
+
+### Consolidated Phase Summaries
+
+#### Phase 2 — Export & Data Consolidation (Complete)
+- Consolidated export and data loading from legacy scripts into CLI modules.
+- Deleted scripts/export_data.py and scripts/load_bulk_data.py (1,300+ lines removed).
+- Implemented reusable helpers in cli/export.py:
+  - export_detections_to_jsonl, export_detections_to_csv
+- Fixed DB session usage for test isolation (db_module.SessionLocal()).
+- Updated README and AGENTS to recommend unified CLI commands.
+- Test outcomes: Export & data tests fully passing; no breaking changes.
+
+#### Phase 3 — CLI Reorganization (Complete)
+- Unified reporting under cli/reports.py with a single reports command group.
+- Removed cli/summary.py, cli/dual_report.py, cli/evidence.py.
+- Updated cli/main.py to register reports group; tests migrated accordingly.
+- Improved discoverability and consistency of reporting commands.
+- Backward compatibility preserved via equivalent subcommands.
+
+#### Phases 5 & 6 — Configuration and Data Cleanup (Complete)
+- Unified config schema, defaults, and validation in config/schema.py.
+- Deprecated legacy config imports; adopted ConfigLoader consistently.
+- Renamed data modules for clarity (local_loader.py → loader.py; hygiene.py → cleaning.py).
+- Hardened CSV cleaning and sampling with progress feedback.
+
+> Note: Detailed per‑phase metrics, command migration examples, and test matrices have been consolidated here. CHANGELOG.md is now the authoritative historical record. Forward‑looking plans and work items are tracked in docs/ROADMAP.md.

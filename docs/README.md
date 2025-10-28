@@ -32,7 +32,7 @@ This document provides an overview of the consolidated documentation structure f
 - Enhanced progress tracking and user feedback
 - **Replaces**: `PERFORMANCE_OPTIMIZATIONS.md`, `CSV_OPTIMIZATION.md`, `ENHANCED_FEEDBACK.md`
 
-### **[ANALYSIS_RESULTS.md](ANALYSIS_RESULTS.md)** - Business Analysis & Key Findings
+### **[ANALYSIS_RESULTS.md](reports/ANALYSIS_RESULTS.md)** - Business Analysis & Key Findings
 **Status**: ✅ Newly Consolidated
 - Dual-perspective success metrics (company vs award level)
 - Key business insights and policy implications  
@@ -89,7 +89,7 @@ This document provides an overview of the consolidated documentation structure f
 | **Contributing code** | AGENTS.md |  
 | **Understanding the system** | SYSTEM_ARCHITECTURE.md |
 | **Performance details** | PERFORMANCE.md |
-| **Business insights** | ANALYSIS_RESULTS.md (git ignored) |
+| **Business insights** | [ANALYSIS_RESULTS.md](reports/ANALYSIS_RESULTS.md) |
 | **Data setup** | DATA_README.md |
 | **Feature specifications** | SPECIFICATIONS.md |
 | **Development workflow** | IMPLEMENTATION_GUIDE.md |
