@@ -64,16 +64,21 @@ poetry run python -m sbir_transition_classifier.cli.main bulk-process --verbose
 
 **Load SBIR Awards Data:**
 ```bash
-poetry run python -m scripts.load_bulk_data load-sbir-data --file-path data/award_data.csv --verbose
+poetry run sbir-detect data load-sbir --file-path data/award_data.csv --verbose
 ```
 
-# Export Detection Results:
+**Load Contract Data:**
 ```bash
-# Export as JSONL (package namespace)
-poetry run python -m sbir_transition_classifier.scripts.export_data export-jsonl --output-path output/detections.jsonl --verbose
+poetry run sbir-detect data load-contracts --file-path data/contracts.csv --verbose
+```
 
-# Export as CSV summary (package namespace)
-poetry run python -m sbir_transition_classifier.scripts.export_data export-csv-summary --output-path output/summary.csv
+**Export Detection Results:**
+```bash
+# Export as JSONL
+poetry run sbir-detect export jsonl --output-path output/detections.jsonl --verbose
+
+# Export as CSV summary
+poetry run sbir-detect export csv --output-path output/summary.csv
 ```
 
 #### 3. CLI Commands
@@ -88,9 +93,15 @@ poetry run sbir-detect info
 poetry run sbir-detect quick-stats
 ```
 
-**Show all available commands:**
+**View All Commands:**
 ```bash
 poetry run sbir-detect --help
+
+# View data commands
+poetry run sbir-detect data --help
+
+# View export commands
+poetry run sbir-detect export --help
 ```
 
 ## Architecture
