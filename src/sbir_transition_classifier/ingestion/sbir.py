@@ -7,7 +7,7 @@ import pandas as pd
 from sqlalchemy.orm import Session
 
 from .base import BaseIngester, IngestionStats
-from ..db.database import SessionLocal
+from ..db import database as db_module
 from ..core import models
 
 
@@ -47,7 +47,7 @@ class SbirIngester(BaseIngester):
         valid_df = self._clean_and_validate(df)
 
         # Bulk database operations with duplicate prevention
-        db = SessionLocal()
+        db = db_module.SessionLocal()
         try:
             # Clear existing data to prevent duplicates from multiple loads
             existing_record = db.query(models.SbirAward.id).limit(1).first()
