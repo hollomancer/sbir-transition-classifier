@@ -9,6 +9,10 @@ This changelog follows Keep a Changelog conventions.
 ### Added
 - Centralized docs index at `docs/README.md` to serve as the canonical entry point for documentation.
 - New `CHANGELOG.md` seeded with summaries from refactor/phase documents.
+- **DB patterns guidance** in IMPLEMENTATION_GUIDE: session lifecycle, eager loading patterns (selectinload/joinedload), chunked bulk inserts, conflict handling, and testing patterns for SQLAlchemy v2.
+- **Ingestion normalization** section in IMPLEMENTATION_GUIDE: documents transforms (whitespace/casing, PIID/date/competition normalization), validation flags (missing_piid, missing_agency, duplicates_skipped), and behavior guidelines for safe defaults.
+- CLI utilities module (`cli/utils.py`): consolidated CliContext, progress tracking, console setup, and shared helpers (format_duration, format_size) to reduce duplication.
+- Database queries module (`db/queries.py`): common query patterns for vendors, SBIR awards, contracts, and detections; includes eager loading guidance, chunked iteration, and aggregate statistics helpers.
 
 ### Changed
 - CLI `run` command:
@@ -21,6 +25,9 @@ This changelog follows Keep a Changelog conventions.
 - Packaging/Imports:
   - Explicit Poetry `packages` include for `src/` layout to ensure all modules (e.g., `data/cleaning.py`) are packaged.
   - Lazy-imports in CLI modules (`bulk`, `hygiene`) to avoid import-time failures and reduce optional dependency coupling.
+
+- Cleanup:
+  - Removed unused `detection/data_quality.py` (functions were not called anywhere; data quality checks are now handled by ingestion validation).
 
 ### Migrated
 - Pydantic v2:

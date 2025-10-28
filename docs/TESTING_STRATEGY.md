@@ -69,7 +69,6 @@ tests/
 - `analysis/transition_perspectives.py` - Transition analysis views
 
 #### Detection Components (4/6 untested)
-- `detection/data_quality.py` - Data quality filters
 - `detection/heuristics.py` - Candidate matching logic
 - `detection/pipeline.py` - Detection pipeline orchestration
 - `detection/local_service.py` - Local detection service
@@ -159,7 +158,7 @@ tests/
 **Why**: Core detection logic with complex matching rules.
 
 #### 1.3 Data Quality Validation Tests
-**File**: `tests/unit/detection/test_data_quality.py`
+
 
 ```python
 # Test cases needed:
@@ -518,7 +517,6 @@ def test_contract_ingestion_validates_piid():
 ### Immediate (This Sprint)
 - [ ] Add `tests/unit/ingestion/test_contract_ingester.py`
 - [ ] Add `tests/unit/detection/test_heuristics.py`
-- [ ] Add `tests/unit/detection/test_data_quality.py`
 - [ ] Document test database fixture pattern
 
 ### Short-Term (Next 2 Sprints)
@@ -587,7 +585,7 @@ Migration note:
 | `detection/heuristics.py` | ⚠️ | **HIGH PRIORITY** - indirect only |
 | `detection/main.py` | ⚠️ | Integration tests only |
 | `detection/pipeline.py` | ❌ | Needs tests |
-| `detection/data_quality.py` | ❌ | **HIGH PRIORITY** |
+
 | `detection/local_service.py` | ❌ | Needs tests |
 | `config/loader.py` | ✅ | Unit tests exist |
 | `config/validator.py` | ❌ | Needs tests |

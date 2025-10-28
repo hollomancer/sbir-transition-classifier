@@ -229,8 +229,12 @@ Acceptance criteria:
 
 - [ ] Move commit message template to docs/templates or .github (and cross-link in AGENTS.md).
 - [ ] Merge E2E_TEST_ASSESSMENT into TESTING_STRATEGY.
-- [ ] Add DB patterns note to IMPLEMENTATION_GUIDE.
-- [ ] Add evidence “why” summary and version field.
+- [x] Add DB patterns section to IMPLEMENTATION_GUIDE (session lifecycle, eager loading, chunked bulk inserts).
+- [x] Add Ingestion Normalization section to IMPLEMENTATION_GUIDE (transforms and validation flags).
+- [x] Create CLI utilities module (cli/utils.py) with CliContext, progress tracking, and shared helpers.
+- [x] Create database queries module (db/queries.py) with common patterns (vendors, awards, contracts, detections).
+- [x] Remove unused detection/data_quality.py (data quality checks now in ingestion validation).
+- [ ] Add evidence "why" summary and version field.
 - [ ] Add ingestion metrics logging and summarize per run.
 - [ ] Define signal registry and YAML toggles; add unit tests for each signal.
 - [ ] Write baseline performance doc section with reproducible commands.
