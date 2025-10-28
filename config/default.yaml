@@ -1,5 +1,13 @@
 schema_version: "1.0"
 
+# Database configuration
+database:
+  url: "sqlite:///./sbir_transitions.db"
+  echo: false
+  pool_size: 5
+  pool_timeout: 30
+
+# Data ingestion settings
 ingestion:
   data_formats: ["csv"]
   encoding: "utf-8"
