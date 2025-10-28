@@ -157,8 +157,13 @@ def run_detection_for_award(db: Session, sbir_award: models.SbirAward):
     db.commit()
 
 
-def run_full_detection():
-    """Runs parallel detection with bulk database operations."""
+def run_full_detection(in_process: bool = False):
+    """Runs parallel detection with bulk database operations.
+
+    Args:
+        in_process: If True, run chunk processing serially in the current process
+                    (useful for testing). Default False (parallel multiprocessing).
+    """
     from rich.progress import (
         Progress,
         SpinnerColumn,
@@ -202,11 +207,18 @@ def run_full_detection():
 
         console.print(f"📊 Found {total_awards:,} new awards to process", style="cyan")
 
-        # Determine optimal number of workers
-        num_workers = min(4, os.cpu_count() or 1, max(1, total_awards // 1000))
-        console.print(f"🚀 Using {num_workers} parallel workers", style="yellow")
+        # Determine optimal number of workers (switch to single-process when in_process=True)
+        if in_process:
+            num_workers = 1
+            console.print(
+                "🚀 Running in single-process (in-process) mode for testing",
+                style="yellow",
+            )
+        else:
+            num_workers = min(4, os.cpu_count() or 1, max(1, total_awards // 1000))
+            console.print(f"🚀 Using {num_workers} parallel workers", style="yellow")
 
-        # Split award IDs into chunks for parallel processing
+        # Split award IDs into chunks for processing
         award_ids = [award.id for award in eligible_awards]
         dynamic_chunk_size = max(200, total_awards // (num_workers * 8) or 1)
         award_id_chunks = [
@@ -228,14 +240,22 @@ def run_full_detection():
             all_detections = []
             total_processed = 0
 
-            # Process chunks in parallel
-            with mp.Pool(num_workers) as pool:
-                for chunk_results, processed_count in pool.imap(
-                    process_award_chunk, chunk_payloads, chunksize=1
-                ):
+            # In-process (serial) mode: call the chunk processor directly for easier testing
+            if in_process or num_workers <= 1:
+                for payload in chunk_payloads:
+                    chunk_results, processed_count = process_award_chunk(payload)
                     all_detections.extend(chunk_results)
                     total_processed += processed_count
                     progress.update(task, advance=processed_count)
+            else:
+                # Process chunks in parallel using multiprocessing pool
+                with mp.Pool(num_workers) as pool:
+                    for chunk_results, processed_count in pool.imap(
+                        process_award_chunk, chunk_payloads, chunksize=1
+                    ):
+                        all_detections.extend(chunk_results)
+                        total_processed += processed_count
+                        progress.update(task, advance=processed_count)
 
             # Ensure the progress bar reflects any rounding adjustments
             progress.update(task, completed=min(total_processed, total_awards))

@@ -56,7 +56,7 @@ But it's not done yet. See `docs/IMPLEMENTATION_GUIDE.md` for a development play
 # Run complete detection pipeline with automatic data loading and export
 poetry run sbir-detect bulk-process --verbose
 
-# Or using the module directly
+# Or using the module directly (package-invocation)
 poetry run python -m sbir_transition_classifier.cli.main bulk-process --verbose
 ```
 
@@ -67,13 +67,13 @@ poetry run python -m sbir_transition_classifier.cli.main bulk-process --verbose
 poetry run python -m scripts.load_bulk_data load-sbir-data --file-path data/award_data.csv --verbose
 ```
 
-**Export Detection Results:**
+# Export Detection Results:
 ```bash
-# Export as JSONL
-poetry run python -m scripts.export_data export-jsonl --output-path output/detections.jsonl --verbose
+# Export as JSONL (package namespace)
+poetry run python -m sbir_transition_classifier.scripts.export_data export-jsonl --output-path output/detections.jsonl --verbose
 
-# Export as CSV summary
-poetry run python -m scripts.export_data export-csv-summary --output-path output/summary.csv
+# Export as CSV summary (package namespace)
+poetry run python -m sbir_transition_classifier.scripts.export_data export-csv-summary --output-path output/summary.csv
 ```
 
 #### 3. CLI Commands
@@ -172,7 +172,8 @@ poetry run sbir-detect quick-stats
 
 **Load SBIR Data:**
 ```bash
-poetry run python -m scripts.load_bulk_data load-sbir-data --file-path data/awards.csv --verbose
+# Use the package-installed script entry for data loading (package namespace)
+poetry run python -m sbir_transition_classifier.scripts.load_bulk_data load-sbir-data --file-path data/awards.csv --verbose
 ```
 
 **Export Results:**
