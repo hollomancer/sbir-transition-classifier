@@ -505,7 +505,7 @@ def bulk_process(
         ) as progress:
             # Count final results
             count_task = progress.add_task("📊 Counting results...", total=1)
-            db = SessionLocal()
+            db = db_module.SessionLocal()
             try:
                 from ..core import models
 
