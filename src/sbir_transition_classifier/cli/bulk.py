@@ -83,6 +83,11 @@ def load_csv_file(csv_file_info):
 @click.option(
     "--sample-size", type=int, default=1000, help="Sample size when creating samples"
 )
+@click.option(
+    "--in-process",
+    is_flag=True,
+    help="Run detection serially in-process (useful for testing and CI)",
+)
 def bulk_process(
     data_dir: Path,
     output_dir: Path,
@@ -93,6 +98,7 @@ def bulk_process(
     use_samples: bool,
     create_samples: bool,
     sample_size: int,
+    in_process: bool,
 ):
     """Run bulk SBIR transition detection on all available data."""
 
@@ -488,7 +494,8 @@ def bulk_process(
                 time.sleep(0.01)  # Remove this in real implementation
                 progress.update(detection_task, advance=1)
 
-            results = run_full_detection()
+            # Run detection pipeline; allow single-process deterministic mode for testing
+            results = run_full_detection(in_process=in_process)
 
         detection_time = time.time() - detection_start
 
