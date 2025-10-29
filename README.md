@@ -39,7 +39,7 @@ But it's not done yet. See `docs/IMPLEMENTATION_GUIDE.md` for a development play
    ```bash
    poetry install
    ```
-   
+
    Or manually:
    ```bash
    poetry install
@@ -165,7 +165,7 @@ poetry run sbir-detect bulk-process [OPTIONS]
 
 Options:
   --data-dir PATH          Directory containing input data files [default: ./data]
-  --output-dir PATH        Output directory for results [default: ./output]  
+  --output-dir PATH        Output directory for results [default: ./output]
   --chunk-size INTEGER     Batch size for processing [default: 1000]
   --export-format [jsonl|csv|both]  Export format [default: both]
   --verbose, -v            Enable detailed progress logging
@@ -239,7 +239,7 @@ poetry run sbir-detect export jsonl --output-path dev_results.jsonl --verbose
 ## Performance
 
 - **Target**: Backtest a full fiscal year in < 8 hours
-- **Processing Rate**: 1000+ records/minute on modern hardware  
+- **Processing Rate**: 1000+ records/minute on modern hardware
 - **Scale**: Processes 10-100GB yearly data files
 - **Memory Efficiency**: Streaming processing with configurable chunk sizes
 
@@ -294,7 +294,7 @@ poetry run sbir-detect export csv --output-path summary.csv
 The project uses three data directories for different purposes:
 
 - **`data/`** - Production data files (excluded from git due to size)
-- **`data_subset/`** - Development-friendly smaller samples  
+- **`data_subset/`** - Development-friendly smaller samples
 - **`test_data/`** - Test fixtures and mock data for unit/integration tests
 
 ### Required Production Files (`data/`)
@@ -308,13 +308,6 @@ The project uses three data directories for different purposes:
 - **File:** `FY2026_All_Contracts_Full_20251008_1.csv` (18.6MB)
 - **Source:** https://www.usaspending.gov/download_center/award_data_archive
 - **Contains:** FY2026 federal contract data
-
-#### Recommended Additional Files:
-- `Contracts_PrimeAwardSummary_2020_1.csv`
-- `Contracts_PrimeAwardSummary_2021_1.csv`
-- `Contracts_PrimeAwardSummary_2022_1.csv`
-- `Contracts_PrimeAwardSummary_2023_1.csv`
-- `Contracts_PrimeAwardSummary_2024_1.csv`
 
 ### Download Instructions
 
@@ -330,7 +323,7 @@ Contact project maintainer for `award_data.csv` file
 
 #### For Development (`data_subset/`)
 Place smaller versions of the main data files here for development work:
-- Subset of `award_data.csv` 
+- Subset of `award_data.csv`
 - Contract data samples
 - Development-friendly data sizes
 
@@ -396,7 +389,7 @@ poetry run sbir-detect quick-stats
 
 **File Organization:**
 - `data/` - Input CSV files (awards, contracts)
-- `output/` - Generated reports and exports  
+- `output/` - Generated reports and exports
 - `cli/` - Command-line interface modules
 - `src/` - Core application code
 
