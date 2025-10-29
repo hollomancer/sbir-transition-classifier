@@ -15,6 +15,7 @@ class VendorMatcher:
         " corp.",
         " corporation",
         " llc",
+        " llc.",
         " l.l.c.",
         " ltd",
         " ltd.",
@@ -25,6 +26,8 @@ class VendorMatcher:
         " lp",
         " l.p.",
     ]
+</parameter>
+
 
     @staticmethod
     def normalize_name(vendor_name: str) -> str:

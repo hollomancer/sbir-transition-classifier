@@ -10,6 +10,7 @@ from sbir_transition_classifier.db.database import Base, SessionLocal, engine
 from sbir_transition_classifier.core import models
 from sbir_transition_classifier.db import queries
 from sbir_transition_classifier.ingestion import SbirIngester
+from sbir_transition_classifier.detection import scoring
 
 
 def reset_db():

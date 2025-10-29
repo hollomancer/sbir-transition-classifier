@@ -33,6 +33,9 @@ def extract_year_from_piid(piid: str) -> Optional[int]:
     """
     Extract year from PIID (Procurement Instrument Identifier).
 
+    PIID format typically includes fiscal year as 2 digits: XXX-YY-C-NNNN
+    where YY is the fiscal year (e.g., 20 = 2020, 21 = 2021).
+
     Args:
         piid: Procurement Instrument Identifier string
 
@@ -42,12 +45,13 @@ def extract_year_from_piid(piid: str) -> Optional[int]:
     if not piid:
         return None
 
-    # Extract year pattern (20XX)
-    year_match = re.search(r"20\d{2}", piid)
-    if not year_match:
-        return None
+    # Extract 2-digit fiscal year from standard PIID format: -YY-C-
+    year_match = re.search(r"-(\d{2})-C-", piid)
+    if year_match:
+        year_code = int(year_match.group(1))
+        return 2000 + year_code
 
-    return int(year_match.group())
+    return None
 
 
 def has_date_mismatch(contract: Dict[str, Any], threshold_years: int = 2) -> bool:
@@ -98,8 +102,11 @@ def get_months_between(date1: datetime, date2: datetime) -> float:
     Returns:
         Number of months between dates (can be negative)
     """
-    delta = date2 - date1
-    return delta.days / 30.0
+    months = (date2.year - date1.year) * 12 + (date2.month - date1.month)
+    # Adjust if day2 < day1 (not yet a full month)
+    if date2.day < date1.day:
+        months -= 1
+    return float(months)
 
 
 def is_within_timing_window(
