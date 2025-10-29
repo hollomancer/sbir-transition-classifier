@@ -10,7 +10,7 @@ from loguru import logger
 from ..config.loader import ConfigLoader, ConfigLoadError
 from ..config.schema import ConfigValidator
 from ..data.models import DetectionSession, SessionStatus
-from .output import OutputGenerator
+from .output import DetectionOutputter
 
 
 @click.command()
@@ -171,7 +171,7 @@ def run(config: Optional[Path], output: Path, data_dir: Path, verbose: bool):
             except Exception as e:
                 raise click.ClickException(f"Failed to write output file: {e}")
         else:
-            output_gen = OutputGenerator(config_obj, session)
+            output_gen = DetectionOutputter(config_obj, session)
             output_files = output_gen.generate_outputs(results, output)
 
         # Update session status
