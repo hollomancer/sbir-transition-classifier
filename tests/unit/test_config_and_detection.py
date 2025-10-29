@@ -8,7 +8,7 @@ from sbir_transition_classifier.config.loader import ConfigLoader
 from sbir_transition_classifier.config.schema import ConfigSchema
 from sbir_transition_classifier.db.database import Base, SessionLocal, engine
 from sbir_transition_classifier.core import models
-from sbir_transition_classifier.detection import heuristics, scoring
+from sbir_transition_classifier.db import queries
 from sbir_transition_classifier.ingestion import SbirIngester
 
 
@@ -108,7 +108,7 @@ def test_heuristics_timing_window_filters_contracts():
         db.add(outside)
         db.commit()
 
-        candidates = heuristics.find_candidate_contracts(db, award)
+        candidates = queries.find_candidate_contracts(db, award)
         piids = {c.piid for c in candidates}
 
         assert "CNTR-001_0_0" in piids

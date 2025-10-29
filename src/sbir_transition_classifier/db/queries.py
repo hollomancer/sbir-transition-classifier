@@ -14,6 +14,8 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..core import models
 from . import database as db_module
+from ..config.schema import ConfigSchema
+from ..config.loader import ConfigLoader
 
 
 # ==============================================================================
@@ -415,6 +417,55 @@ def iter_detections_chunked(
 
     if chunk:
         yield chunk
+
+
+def find_candidate_contracts(
+    db: Session, sbir_award: models.SbirAward, config: ConfigSchema = None
+):
+    """
+    Finds contract vehicles that were awarded to the same vendor within the configured time window
+    after the completion of a given SBIR Phase I or Phase II award.
+
+    Args:
+        db: Database session
+        sbir_award: SBIR award model
+        config: Configuration schema (optional, loads default if not provided)
+    """
+    if config is None:
+        try:
+            config = ConfigLoader.load_default()
+        except Exception:
+            config = ConfigSchema()
+
+    eligible_phases = set(config.detection.eligible_phases)
+
+    if sbir_award.phase not in eligible_phases:
+        return []
+
+    # Prefer completion date; fall back to award date
+    base_date = sbir_award.completion_date or sbir_award.award_date
+    if not base_date:
+        return []
+
+    min_days = 30 * config.detection.timing.min_months_after_phase2
+    max_days = 30 * config.detection.timing.max_months_after_phase2
+
+    start_window = base_date + timedelta(days=min_days)
+    end_window = base_date + timedelta(days=max_days)
+
+    candidates = (
+        db.query(models.Contract)
+        .filter(
+            and_(
+                models.Contract.vendor_id == sbir_award.vendor_id,
+                models.Contract.start_date >= start_window,
+                models.Contract.start_date <= end_window,
+            )
+        )
+        .all()
+    )
+
+    return candidates
 
 
 # ==============================================================================

@@ -3,8 +3,8 @@ from sqlalchemy.orm import Session, selectinload
 from loguru import logger
 from rich.table import Table
 from ..core import models
-from . import heuristics, scoring
-from ..db import database as db_module
+from . import scoring
+from ..db import database as db_module, queries
 import datetime
 import uuid
 import multiprocessing as mp
@@ -49,7 +49,7 @@ def process_award_chunk(
         )
 
         for award in awards:
-            candidate_contracts = heuristics.find_candidate_contracts(db, award)
+            candidate_contracts = queries.find_candidate_contracts(db, award)
 
             for contract in candidate_contracts:
                 # Data quality filter: Skip contracts with PIID/date mismatches
@@ -60,8 +60,8 @@ def process_award_chunk(
                 confidence = scoring.get_confidence_level(score)
 
                 if score >= 0.2:
-                    signals = heuristics.get_confidence_signals(award, contract)
-                    text_signals = heuristics.get_text_based_signals(award, contract)
+                    signals = scoring.get_confidence_signals(award, contract)
+                    text_signals = scoring.get_text_based_signals(award, contract)
 
                     # Get vendor name safely
                     vendor_name = award.vendor.name if award.vendor else None
@@ -110,15 +110,15 @@ def process_award_chunk(
 
 def run_detection_for_award(db: Session, sbir_award: models.SbirAward):
     """Legacy function - kept for compatibility."""
-    candidate_contracts = heuristics.find_candidate_contracts(db, sbir_award)
+    candidate_contracts = queries.find_candidate_contracts(db, sbir_award)
 
     for contract in candidate_contracts:
         score = scoring.score_transition(sbir_award, contract)
         confidence = scoring.get_confidence_level(score)
 
         if score >= 0.2:
-            signals = heuristics.get_confidence_signals(sbir_award, contract)
-            text_signals = heuristics.get_text_based_signals(sbir_award, contract)
+            signals = scoring.get_confidence_signals(sbir_award, contract)
+            text_signals = scoring.get_text_based_signals(sbir_award, contract)
 
             evidence = {
                 "detection_id": str(uuid.uuid4()),

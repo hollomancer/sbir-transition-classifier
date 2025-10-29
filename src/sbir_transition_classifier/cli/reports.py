@@ -17,6 +17,7 @@ from rich.panel import Panel
 
 from ..analysis import analyze_transition_perspectives
 from ..db.database import SessionLocal
+from .output import ReportGenerator
 
 
 # ============================================================================
@@ -65,7 +66,7 @@ def generate_summary(
     """Generate human-readable summary report from detection results."""
 
     try:
-        generator = SummaryReportGenerator(results_dir)
+        generator = ReportGenerator(results_dir)
 
         if format == "text":
             report = generator.generate_text_report(include_details)
@@ -104,7 +105,7 @@ def quick_stats(results_dir: Path):
     """Show quick statistics from detection results."""
 
     try:
-        generator = SummaryReportGenerator(results_dir)
+        generator = ReportGenerator(results_dir)
         stats = generator.calculate_statistics()
 
         click.echo("DETECTION STATISTICS")
@@ -284,11 +285,11 @@ def dual_report(output_dir: Path, output_format: str, verbose: bool):
 
 @reports.command(name="view-evidence")
 @click.option(
-    "--evidence-dir",
-    "-e",
+    "--results-dir",
+    "-r",
     type=click.Path(exists=True, path_type=Path),
     required=True,
-    help="Path to evidence directory",
+    help="Path to results directory containing detection outputs",
 )
 @click.option("--detection-id", "-d", help="Specific detection ID to view (optional)")
 @click.option(
@@ -305,7 +306,7 @@ def dual_report(output_dir: Path, output_format: str, verbose: bool):
     help="Filter by confidence level",
 )
 def view_evidence(
-    evidence_dir: Path,
+    results_dir: Path,
     detection_id: Optional[str],
     format: str,
     confidence: Optional[str],
@@ -313,14 +314,14 @@ def view_evidence(
     """View evidence bundles from local files."""
 
     try:
-        viewer = EvidenceViewer(evidence_dir)
+        generator = ReportGenerator(results_dir)
 
         if detection_id:
             # View specific detection
-            viewer.view_single_detection(detection_id, format)
+            generator.view_single_detection(detection_id, format)
         else:
             # List all detections
-            viewer.list_detections(confidence, format)
+            generator.list_detections(confidence, format)
 
     except Exception as e:
         logger.error(f"Evidence viewing failed: {e}")
@@ -329,46 +330,18 @@ def view_evidence(
 
 @reports.command(name="list-evidence")
 @click.option(
-    "--evidence-dir",
-    "-e",
+    "--results-dir",
+    "-r",
     type=click.Path(exists=True, path_type=Path),
     required=True,
-    help="Path to evidence directory",
+    help="Path to results directory containing detection outputs",
 )
-def list_evidence(evidence_dir: Path):
+def list_evidence(results_dir: Path):
     """List all available evidence bundles."""
 
     try:
-        viewer = EvidenceViewer(evidence_dir)
-        detections = viewer.discover_evidence_bundles()
-
-        if not detections:
-            click.echo("No evidence bundles found.")
-            return
-
-        click.echo(f"Found {len(detections)} evidence bundles:\n")
-
-        # Group by confidence
-        high_confidence = [
-            d for d in detections if d.get("confidence") == "High Confidence"
-        ]
-        likely_transitions = [
-            d for d in detections if d.get("confidence") == "Likely Transition"
-        ]
-
-        if high_confidence:
-            click.echo(f"High Confidence ({len(high_confidence)}):")
-            for detection in high_confidence:
-                click.echo(
-                    f"  {detection['detection_id'][:8]}... - Score: {detection['likelihood_score']:.3f}"
-                )
-
-        if likely_transitions:
-            click.echo(f"\nLikely Transition ({len(likely_transitions)}):")
-            for detection in likely_transitions:
-                click.echo(
-                    f"  {detection['detection_id'][:8]}... - Score: {detection['likelihood_score']:.3f}"
-                )
+        generator = ReportGenerator(results_dir)
+        generator.list_detections(None, "summary")
 
     except Exception as e:
         logger.error(f"Evidence listing failed: {e}")
@@ -377,11 +350,11 @@ def list_evidence(evidence_dir: Path):
 
 @reports.command(name="evidence-report")
 @click.option(
-    "--evidence-dir",
-    "-e",
+    "--results-dir",
+    "-r",
     type=click.Path(exists=True, path_type=Path),
     required=True,
-    help="Path to evidence directory",
+    help="Path to results directory containing detection outputs",
 )
 @click.option(
     "--output",
@@ -389,12 +362,12 @@ def list_evidence(evidence_dir: Path):
     type=click.Path(path_type=Path),
     help="Output file for evidence report",
 )
-def evidence_report(evidence_dir: Path, output: Optional[Path]):
+def evidence_report(results_dir: Path, output: Optional[Path]):
     """Generate comprehensive evidence report."""
 
     try:
-        viewer = EvidenceViewer(evidence_dir)
-        report = viewer.generate_report()
+        generator = ReportGenerator(results_dir)
+        report = generator.generate_text_report(include_details=True)
 
         if output:
             with open(output, "w", encoding="utf-8") as f:
@@ -406,300 +379,3 @@ def evidence_report(evidence_dir: Path, output: Optional[Path]):
     except Exception as e:
         logger.error(f"Evidence report generation failed: {e}")
         raise click.ClickException(f"Failed to generate evidence report: {e}")
-
-
-# ============================================================================
-# HELPER CLASSES
-# ============================================================================
-
-
-class SummaryReportGenerator:
-    """Generates human-readable summary reports from detection results."""
-
-    def __init__(self, results_dir: Path):
-        self.results_dir = results_dir
-        self.detections = self._load_detections()
-
-    def _load_detections(self) -> List[Dict[str, Any]]:
-        """Load detection results from JSONL file."""
-        detections_file = self.results_dir / "detections.jsonl"
-
-        if not detections_file.exists():
-            raise FileNotFoundError(f"Detections file not found: {detections_file}")
-
-        detections = []
-        with open(detections_file, "r", encoding="utf-8") as f:
-            for line in f:
-                if line.strip():
-                    detections.append(json.loads(line))
-
-        return detections
-
-    def calculate_statistics(self) -> Dict[str, Any]:
-        """Calculate summary statistics."""
-        if not self.detections:
-            return {
-                "total_detections": 0,
-                "high_confidence": 0,
-                "likely_transitions": 0,
-                "average_score": 0.0,
-                "same_agency_count": 0,
-                "cross_agency_count": 0,
-            }
-
-        high_confidence = sum(
-            1 for d in self.detections if d["confidence"] == "High Confidence"
-        )
-        likely_transitions = len(self.detections) - high_confidence
-
-        total_score = sum(d["likelihood_score"] for d in self.detections)
-        average_score = total_score / len(self.detections)
-
-        same_agency = sum(
-            1
-            for d in self.detections
-            if d["sbir_award"]["agency"] == d["contract"]["agency"]
-        )
-        cross_agency = len(self.detections) - same_agency
-
-        return {
-            "total_detections": len(self.detections),
-            "high_confidence": high_confidence,
-            "likely_transitions": likely_transitions,
-            "average_score": average_score,
-            "same_agency_count": same_agency,
-            "cross_agency_count": cross_agency,
-            "score_distribution": self._calculate_score_distribution(),
-            "timing_analysis": self._analyze_timing_patterns(),
-            "agency_breakdown": self._analyze_agency_patterns(),
-        }
-
-    def generate_text_report(self, include_details: bool = False) -> str:
-        """Generate plain text summary report."""
-        stats = self.calculate_statistics()
-
-        lines = [
-            "SBIR TRANSITION DETECTION SUMMARY",
-            "=" * 50,
-            "",
-            f"Total Detections: {stats['total_detections']}",
-            f"High Confidence: {stats['high_confidence']}",
-            f"Likely Transitions: {stats['likely_transitions']}",
-            "",
-            f"Average Score: {stats['average_score']:.3f}",
-            f"Same Agency Transitions: {stats['same_agency_count']}",
-            f"Cross Agency Transitions: {stats['cross_agency_count']}",
-            "",
-        ]
-
-        if include_details and stats["total_detections"] > 0:
-            lines.extend(self._generate_detailed_analysis(stats))
-
-        return "\n".join(lines)
-
-    def generate_markdown_report(self, include_details: bool = False) -> str:
-        """Generate markdown summary report."""
-        stats = self.calculate_statistics()
-
-        lines = [
-            "# SBIR Transition Detection Summary",
-            "",
-            "## Overview",
-            "",
-            f"- **Total Detections**: {stats['total_detections']}",
-            f"- **High Confidence**: {stats['high_confidence']}",
-            f"- **Likely Transitions**: {stats['likely_transitions']}",
-            "",
-            "## Statistics",
-            "",
-            f"- **Average Score**: {stats['average_score']:.3f}",
-            f"- **Same Agency**: {stats['same_agency_count']}",
-            f"- **Cross Agency**: {stats['cross_agency_count']}",
-            "",
-        ]
-
-        if include_details and stats["total_detections"] > 0:
-            lines.extend(self._generate_detailed_markdown(stats))
-
-        return "\n".join(lines)
-
-    def generate_json_report(self) -> Dict[str, Any]:
-        """Generate JSON summary report."""
-        return self.calculate_statistics()
-
-    def _calculate_score_distribution(self) -> Dict[str, int]:
-        """Calculate distribution of likelihood scores."""
-        if not self.detections:
-            return {}
-
-        distribution = {
-            "0.0-0.2": 0,
-            "0.2-0.4": 0,
-            "0.4-0.6": 0,
-            "0.6-0.8": 0,
-            "0.8-1.0": 0,
-        }
-
-        for detection in self.detections:
-            score = detection["likelihood_score"]
-            if score < 0.2:
-                distribution["0.0-0.2"] += 1
-            elif score < 0.4:
-                distribution["0.2-0.4"] += 1
-            elif score < 0.6:
-                distribution["0.4-0.6"] += 1
-            elif score < 0.8:
-                distribution["0.6-0.8"] += 1
-            else:
-                distribution["0.8-1.0"] += 1
-
-        return distribution
-
-    def _analyze_timing_patterns(self) -> Dict[str, Any]:
-        """Analyze timing patterns in detections."""
-        if not self.detections:
-            return {}
-
-        # Placeholder for timing analysis
-        return {
-            "avg_time_to_transition": "Not implemented",
-            "median_time_to_transition": "Not implemented",
-        }
-
-    def _analyze_agency_patterns(self) -> Dict[str, int]:
-        """Analyze patterns by agency."""
-        if not self.detections:
-            return {}
-
-        agency_counts = {}
-        for detection in self.detections:
-            agency = detection["sbir_award"]["agency"]
-            agency_counts[agency] = agency_counts.get(agency, 0) + 1
-
-        return agency_counts
-
-    def _generate_detailed_analysis(self, stats: Dict[str, Any]) -> List[str]:
-        """Generate detailed analysis section."""
-        lines = ["DETAILED ANALYSIS", "-" * 50, "", "Score Distribution:"]
-
-        for range_label, count in stats["score_distribution"].items():
-            lines.append(f"  {range_label}: {count}")
-
-        lines.extend(["", "Agency Breakdown:"])
-        for agency, count in stats["agency_breakdown"].items():
-            lines.append(f"  {agency}: {count}")
-
-        return lines
-
-    def _generate_detailed_markdown(self, stats: Dict[str, Any]) -> List[str]:
-        """Generate detailed analysis section in markdown."""
-        lines = ["## Detailed Analysis", "", "### Score Distribution", ""]
-
-        for range_label, count in stats["score_distribution"].items():
-            lines.append(f"- **{range_label}**: {count}")
-
-        lines.extend(["", "### Agency Breakdown", ""])
-        for agency, count in stats["agency_breakdown"].items():
-            lines.append(f"- **{agency}**: {count}")
-
-        return lines
-
-
-class EvidenceViewer:
-    """Viewer for evidence bundle files."""
-
-    def __init__(self, evidence_dir: Path):
-        self.evidence_dir = evidence_dir
-
-    def discover_evidence_bundles(self) -> List[Dict[str, Any]]:
-        """Discover all evidence bundle files."""
-        bundles = []
-
-        if not self.evidence_dir.exists():
-            return bundles
-
-        for file_path in self.evidence_dir.glob("*.json"):
-            try:
-                with open(file_path, "r") as f:
-                    bundle = json.load(f)
-                    bundles.append(bundle)
-            except Exception as e:
-                logger.warning(f"Failed to load evidence bundle {file_path}: {e}")
-
-        return bundles
-
-    def view_single_detection(self, detection_id: str, format: str):
-        """View a single detection's evidence."""
-        evidence_file = self.evidence_dir / f"{detection_id}.json"
-
-        if not evidence_file.exists():
-            raise FileNotFoundError(f"Evidence file not found: {evidence_file}")
-
-        with open(evidence_file, "r") as f:
-            evidence = json.load(f)
-
-        if format == "json":
-            click.echo(json.dumps(evidence, indent=2))
-        elif format == "full":
-            self._print_full_evidence(evidence)
-        else:  # summary
-            self._print_summary_evidence(evidence)
-
-    def list_detections(self, confidence: Optional[str], format: str):
-        """List all detections, optionally filtered by confidence."""
-        detections = self.discover_evidence_bundles()
-
-        if confidence:
-            detections = [d for d in detections if d.get("confidence") == confidence]
-
-        if format == "json":
-            click.echo(json.dumps(detections, indent=2))
-        else:
-            for detection in detections:
-                click.echo(
-                    f"{detection.get('detection_id', 'Unknown')}: {detection.get('confidence', 'N/A')} - {detection.get('likelihood_score', 0):.3f}"
-                )
-
-    def generate_report(self) -> str:
-        """Generate comprehensive evidence report."""
-        bundles = self.discover_evidence_bundles()
-
-        lines = [
-            "EVIDENCE BUNDLE REPORT",
-            "=" * 50,
-            "",
-            f"Total Evidence Bundles: {len(bundles)}",
-            "",
-        ]
-
-        if bundles:
-            high_conf = sum(
-                1 for b in bundles if b.get("confidence") == "High Confidence"
-            )
-            lines.append(f"High Confidence: {high_conf}")
-            lines.append(f"Likely Transitions: {len(bundles) - high_conf}")
-
-        return "\n".join(lines)
-
-    def _print_full_evidence(self, evidence: Dict[str, Any]):
-        """Print full evidence details."""
-        click.echo(json.dumps(evidence, indent=2))
-
-    def _print_summary_evidence(self, evidence: Dict[str, Any]):
-        """Print summary of evidence."""
-        click.echo(f"Detection ID: {evidence.get('detection_id', 'Unknown')}")
-        click.echo(f"Confidence: {evidence.get('confidence', 'N/A')}")
-        click.echo(f"Score: {evidence.get('likelihood_score', 0):.3f}")
-
-
-# ============================================================================
-# LEGACY COMMAND ALIASES (for backward compatibility)
-# ============================================================================
-
-# Individual command exports for backward compatibility with main.py
-generate_summary_cmd = generate_summary
-quick_stats_cmd = quick_stats
-dual_report_cmd = dual_report
-view_evidence_cmd = view_evidence
-list_evidence_cmd = list_evidence
-evidence_report_cmd = evidence_report

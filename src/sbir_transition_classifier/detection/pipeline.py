@@ -37,13 +37,7 @@ class ConfigurableDetectionPipeline:
 
         detections = []
 
-        # Determine eligible phases from config (fallback to defaults)
-        try:
-            from ..config.loader import ConfigLoader
-
-            eligible_phases = ConfigLoader.load_default().detection.eligible_phases
-        except Exception:
-            eligible_phases = ["Phase I", "Phase II"]
+        eligible_phases = self.config.detection.eligible_phases
 
         # Filter to eligible phases
         eligible_awards = [
@@ -95,55 +89,15 @@ class ConfigurableDetectionPipeline:
 
     def _vendors_match(self, award: Dict[str, Any], contract: Dict[str, Any]) -> bool:
         """
-        Check if vendors match between award and contract.
-
-        This is a simplified implementation. In production, this would use
-        proper vendor resolution with UEI, CAGE codes, DUNS numbers, etc.
+        Check if vendors match between award and contract by calling the centralized VendorMatcher.
         """
-        award_vendor = str(award.get("vendor_name", "")).lower().strip()
-        contract_vendor = str(contract.get("vendor_name", "")).lower().strip()
-
-        if not award_vendor or not contract_vendor:
-            return False
-
-        # Exact name match
-        if award_vendor == contract_vendor:
-            return True
-
-        # Fuzzy matching for common variations
-        # Remove common suffixes/prefixes
-        award_clean = self._clean_vendor_name(award_vendor)
-        contract_clean = self._clean_vendor_name(contract_vendor)
-
-        return award_clean == contract_clean
-
-    def _clean_vendor_name(self, name: str) -> str:
-        """Clean vendor name for matching."""
-        # Remove common business suffixes
-        suffixes = [
-            " inc",
-            " inc.",
-            " corp",
-            " corp.",
-            " llc",
-            " ltd",
-            " ltd.",
-            " co",
-            " co.",
-        ]
-
-        name_clean = name.lower().strip()
-        for suffix in suffixes:
-            if name_clean.endswith(suffix):
-                name_clean = name_clean[: -len(suffix)].strip()
-
-        return name_clean
+        return VendorMatcher.vendors_match(award, contract)
 
     def _passes_feature_filters(self, contract: Dict[str, Any]) -> bool:
         """Check if contract passes configured feature filters."""
 
         # Data quality filter: Check for PIID/date mismatches
-        if self._has_date_mismatch(contract):
+        if has_date_mismatch(contract):
             return False
 
         # If competed contracts are disabled, only allow sole source
@@ -154,29 +108,6 @@ class ConfigurableDetectionPipeline:
         # Additional feature-based filters could go here
 
         return True
-
-    def _has_date_mismatch(self, contract: Dict[str, Any]) -> bool:
-        """Check if contract has suspicious PIID/date mismatch."""
-        import re
-
-        piid = contract.get("piid", "")
-        start_date = contract.get("start_date")
-
-        if not piid or not start_date:
-            return False
-
-        # Extract year from PIID
-        year_match = re.search(r"20\d{2}", piid)
-        if not year_match:
-            return False
-
-        piid_year = int(year_match.group())
-        contract_year = (
-            start_date.year if hasattr(start_date, "year") else int(str(start_date)[:4])
-        )
-
-        # Flag contracts with >2 year difference as suspicious
-        return abs(piid_year - contract_year) > 2
 
     def _create_detection(
         self,

@@ -1,41 +1,44 @@
-"""Output file generation for detection results."""
+"""Output file generation and reporting for detection results."""
 
 import json
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import pandas as pd
 from datetime import datetime
 
 from loguru import logger
+import click
 
 from ..config.schema import ConfigSchema
 from ..data.models import DetectionSession
 from ..data.schemas import Detection
 
 
-class OutputGenerator:
+class DetectionOutputter:
     """Generates output files from detection results."""
-    
+
     def __init__(self, config: ConfigSchema, session: DetectionSession):
         self.config = config
         self.session = session
-    
-    def generate_outputs(self, detections: List[Detection], output_dir: Path) -> List[Path]:
+
+    def generate_outputs(
+        self, detections: List[Detection], output_dir: Path
+    ) -> List[Path]:
         """
         Generate all configured output formats.
-        
+
         Args:
             detections: List of detection results
             output_dir: Directory to write output files
-            
+
         Returns:
             List of generated file paths
         """
         output_files = []
-        
+
         # Ensure output directory exists
         output_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Generate each requested format
         for format_type in self.config.output.formats:
             try:
@@ -48,252 +51,359 @@ class OutputGenerator:
                 else:
                     logger.warning(f"Unknown output format: {format_type}")
                     continue
-                
+
                 output_files.append(file_path)
                 logger.info(f"Generated {format_type} output: {file_path}")
-                
+
             except Exception as e:
                 logger.error(f"Failed to generate {format_type} output: {e}")
-        
-        # Generate summary report
-        summary_path = self._generate_summary(detections, output_dir)
-        output_files.append(summary_path)
-        
-        # Generate evidence bundles if requested
-        if self.config.output.include_evidence:
-            from ..data.evidence import EvidenceBundleGenerator
-            
-            evidence_gen = EvidenceBundleGenerator(self.session)
-            evidence_artifacts = evidence_gen.generate_evidence_bundles(detections, output_dir)
-            
-            if evidence_artifacts:
-                evidence_dir = output_dir / "evidence"
-                output_files.append(evidence_dir)
-                logger.info(f"Generated {len(evidence_artifacts)} evidence bundles")
-        
+
         return output_files
-    
+
     def _generate_jsonl(self, detections: List[Detection], output_dir: Path) -> Path:
         """Generate JSONL output file."""
         file_path = output_dir / "detections.jsonl"
-        
-        with open(file_path, 'w', encoding='utf-8') as f:
+
+        with open(file_path, "w", encoding="utf-8") as f:
             for detection in detections:
                 record = {
-                    'detection_id': str(detection.id),
-                    'session_id': str(self.session.session_id),
-                    'likelihood_score': detection.likelihood_score,
-                    'confidence': detection.confidence,
-                    'sbir_award': {
-                        'piid': detection.sbir_award.award_piid,
-                        'phase': detection.sbir_award.phase,
-                        'agency': detection.sbir_award.agency,
-                        'completion_date': detection.sbir_award.completion_date.isoformat(),
-                        'topic': detection.sbir_award.topic
+                    "detection_id": str(detection.id),
+                    "session_id": str(self.session.session_id),
+                    "likelihood_score": detection.likelihood_score,
+                    "confidence": detection.confidence,
+                    "sbir_award": {
+                        "piid": detection.sbir_award.award_piid,
+                        "phase": detection.sbir_award.phase,
+                        "agency": detection.sbir_award.agency,
+                        "completion_date": detection.sbir_award.completion_date.isoformat(),
+                        "topic": detection.sbir_award.topic,
                     },
-                    'contract': {
-                        'piid': detection.contract.piid,
-                        'agency': detection.contract.agency,
-                        'start_date': detection.contract.start_date.isoformat(),
-                        'naics_code': detection.contract.naics_code,
-                        'psc_code': detection.contract.psc_code
+                    "contract": {
+                        "piid": detection.contract.piid,
+                        "agency": detection.contract.agency,
+                        "start_date": detection.contract.start_date.isoformat(),
+                        "naics_code": detection.contract.naics_code,
+                        "psc_code": detection.contract.psc_code,
                     },
-                    'evidence_bundle': detection.evidence_bundle,
-                    'created_at': datetime.utcnow().isoformat()
+                    "evidence_bundle": detection.evidence_bundle,
+                    "created_at": datetime.utcnow().isoformat(),
                 }
-                
-                f.write(json.dumps(record) + '\n')
-        
+
+                f.write(json.dumps(record) + "\n")
+
         return file_path
-    
+
     def _generate_csv(self, detections: List[Detection], output_dir: Path) -> Path:
         """Generate CSV output file."""
         file_path = output_dir / "detections.csv"
-        
+
         # Flatten detection data for CSV
         records = []
         for detection in detections:
             record = {
-                'detection_id': str(detection.id),
-                'session_id': str(self.session.session_id),
-                'likelihood_score': detection.likelihood_score,
-                'confidence': detection.confidence,
-                'sbir_piid': detection.sbir_award.award_piid,
-                'sbir_phase': detection.sbir_award.phase,
-                'sbir_agency': detection.sbir_award.agency,
-                'sbir_completion_date': detection.sbir_award.completion_date.isoformat(),
-                'sbir_topic': detection.sbir_award.topic,
-                'contract_piid': detection.contract.piid,
-                'contract_agency': detection.contract.agency,
-                'contract_start_date': detection.contract.start_date.isoformat(),
-                'contract_naics_code': detection.contract.naics_code,
-                'contract_psc_code': detection.contract.psc_code,
-                'agency_match': detection.sbir_award.agency == detection.contract.agency,
-                'timing_days': (detection.contract.start_date - detection.sbir_award.completion_date).days,
-                'created_at': datetime.utcnow().isoformat()
+                "detection_id": str(detection.id),
+                "session_id": str(self.session.session_id),
+                "likelihood_score": detection.likelihood_score,
+                "confidence": detection.confidence,
+                "sbir_piid": detection.sbir_award.award_piid,
+                "sbir_phase": detection.sbir_award.phase,
+                "sbir_agency": detection.sbir_award.agency,
+                "sbir_completion_date": detection.sbir_award.completion_date.isoformat(),
+                "sbir_topic": detection.sbir_award.topic,
+                "contract_piid": detection.contract.piid,
+                "contract_agency": detection.contract.agency,
+                "contract_start_date": detection.contract.start_date.isoformat(),
+                "contract_naics_code": detection.contract.naics_code,
+                "contract_psc_code": detection.contract.psc_code,
+                "agency_match": detection.sbir_award.agency
+                == detection.contract.agency,
+                "timing_days": (
+                    detection.contract.start_date - detection.sbir_award.completion_date
+                ).days,
+                "created_at": datetime.utcnow().isoformat(),
             }
             records.append(record)
-        
+
         df = pd.DataFrame(records)
         df.to_csv(file_path, index=False)
-        
+
         return file_path
-    
+
     def _generate_excel(self, detections: List[Detection], output_dir: Path) -> Path:
         """Generate Excel output file with multiple sheets."""
         file_path = output_dir / "detections.xlsx"
-        
-        with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
+
+        with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
             # Main detections sheet
             records = []
             for detection in detections:
                 record = {
-                    'Detection ID': str(detection.id),
-                    'Likelihood Score': detection.likelihood_score,
-                    'Confidence': detection.confidence,
-                    'SBIR PIID': detection.sbir_award.award_piid,
-                    'SBIR Phase': detection.sbir_award.phase,
-                    'SBIR Agency': detection.sbir_award.agency,
-                    'SBIR Completion': detection.sbir_award.completion_date.strftime('%Y-%m-%d'),
-                    'Contract PIID': detection.contract.piid,
-                    'Contract Agency': detection.contract.agency,
-                    'Contract Start': detection.contract.start_date.strftime('%Y-%m-%d'),
-                    'Agency Match': detection.sbir_award.agency == detection.contract.agency,
-                    'Days After Completion': (detection.contract.start_date - detection.sbir_award.completion_date).days
+                    "Detection ID": str(detection.id),
+                    "Likelihood Score": detection.likelihood_score,
+                    "Confidence": detection.confidence,
+                    "SBIR PIID": detection.sbir_award.award_piid,
+                    "SBIR Phase": detection.sbir_award.phase,
+                    "SBIR Agency": detection.sbir_award.agency,
+                    "SBIR Completion": detection.sbir_award.completion_date.strftime(
+                        "%Y-%m-%d"
+                    ),
+                    "Contract PIID": detection.contract.piid,
+                    "Contract Agency": detection.contract.agency,
+                    "Contract Start": detection.contract.start_date.strftime(
+                        "%Y-%m-%d"
+                    ),
+                    "Agency Match": detection.sbir_award.agency
+                    == detection.contract.agency,
+                    "Days After Completion": (
+                        detection.contract.start_date
+                        - detection.sbir_award.completion_date
+                    ).days,
                 }
                 records.append(record)
-            
+
             df = pd.DataFrame(records)
-            df.to_excel(writer, sheet_name='Detections', index=False)
-            
+            df.to_excel(writer, sheet_name="Detections", index=False)
+
             # Summary statistics sheet
-            summary_data = self._calculate_summary_stats(detections)
-            summary_df = pd.DataFrame(list(summary_data.items()), columns=['Metric', 'Value'])
-            summary_df.to_excel(writer, sheet_name='Summary', index=False)
-        
+            report_generator = ReportGenerator(output_dir)
+            summary_data = report_generator.calculate_statistics()
+            summary_df = pd.DataFrame(
+                list(summary_data.items()), columns=["Metric", "Value"]
+            )
+            summary_df.to_excel(writer, sheet_name="Summary", index=False)
+
         return file_path
-    
-    def _generate_summary(self, detections: List[Detection], output_dir: Path) -> Path:
-        """Generate summary report."""
-        file_path = output_dir / "summary.txt"
-        
-        stats = self._calculate_summary_stats(detections)
-        
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write("SBIR Transition Detection Summary Report\n")
-            f.write("=" * 50 + "\n\n")
-            f.write(f"Session ID: {self.session.session_id}\n")
-            f.write(f"Generated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}\n")
-            f.write(f"Configuration: {self.session.config_used}\n\n")
-            
-            f.write("Detection Results:\n")
-            f.write("-" * 20 + "\n")
-            for key, value in stats.items():
-                f.write(f"{key}: {value}\n")
-            
-            f.write("\nConfiguration Parameters:\n")
-            f.write("-" * 25 + "\n")
-            f.write(f"High Confidence Threshold: {self.config.detection.thresholds.high_confidence}\n")
-            f.write(f"Likely Transition Threshold: {self.config.detection.thresholds.likely_transition}\n")
-            f.write(f"Search Window: {self.config.detection.timing.min_months_after_phase2}-{self.config.detection.timing.max_months_after_phase2} months\n")
-            f.write(f"Cross-Service Detection: {self.config.detection.features.enable_cross_service}\n")
-            f.write(f"Text Analysis: {self.config.detection.features.enable_text_analysis}\n")
-        
-        return file_path
-    
-    def _generate_evidence_bundles(self, detections: List[Detection], output_dir: Path) -> Path:
-        """Generate evidence bundle files."""
-        evidence_dir = output_dir / "evidence"
-        evidence_dir.mkdir(exist_ok=True)
-        
-        for detection in detections:
-            detection_dir = evidence_dir / str(detection.id)
-            detection_dir.mkdir(exist_ok=True)
-            
-            # Full evidence JSON
-            evidence_file = detection_dir / "evidence.json"
-            with open(evidence_file, 'w', encoding='utf-8') as f:
-                evidence_data = {
-                    'detection_id': str(detection.id),
-                    'likelihood_score': detection.likelihood_score,
-                    'confidence': detection.confidence,
-                    'sbir_award': detection.sbir_award.dict(),
-                    'contract': detection.contract.dict(),
-                    'evidence_bundle': detection.evidence_bundle,
-                    'session_metadata': {
-                        'session_id': str(self.session.session_id),
-                        'config_used': self.session.config_used,
-                        'config_checksum': self.session.config_checksum
-                    }
-                }
-                json.dump(evidence_data, f, indent=2, default=str)
-            
-            # Human-readable summary
-            if self.config.output.evidence_detail_level == "full":
-                summary_file = detection_dir / "summary.txt"
-                self._write_evidence_summary(detection, summary_file)
-        
-        return evidence_dir
-    
-    def _write_evidence_summary(self, detection: Detection, file_path: Path):
-        """Write human-readable evidence summary."""
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(f"Detection Evidence Summary\n")
-            f.write("=" * 30 + "\n\n")
-            
-            f.write(f"Detection ID: {detection.id}\n")
-            f.write(f"Likelihood Score: {detection.likelihood_score:.3f}\n")
-            f.write(f"Confidence Level: {detection.confidence}\n\n")
-            
-            f.write("SBIR Award Details:\n")
-            f.write("-" * 20 + "\n")
-            f.write(f"PIID: {detection.sbir_award.award_piid}\n")
-            f.write(f"Phase: {detection.sbir_award.phase}\n")
-            f.write(f"Agency: {detection.sbir_award.agency}\n")
-            f.write(f"Completion Date: {detection.sbir_award.completion_date.strftime('%Y-%m-%d')}\n")
-            f.write(f"Topic: {detection.sbir_award.topic}\n\n")
-            
-            f.write("Contract Details:\n")
-            f.write("-" * 17 + "\n")
-            f.write(f"PIID: {detection.contract.piid}\n")
-            f.write(f"Agency: {detection.contract.agency}\n")
-            f.write(f"Start Date: {detection.contract.start_date.strftime('%Y-%m-%d')}\n")
-            f.write(f"NAICS Code: {detection.contract.naics_code}\n")
-            f.write(f"PSC Code: {detection.contract.psc_code}\n\n")
-            
-            f.write("Evidence Analysis:\n")
-            f.write("-" * 18 + "\n")
-            days_diff = (detection.contract.start_date - detection.sbir_award.completion_date).days
-            f.write(f"Time Gap: {days_diff} days after SBIR completion\n")
-            f.write(f"Agency Match: {'Yes' if detection.sbir_award.agency == detection.contract.agency else 'No'}\n")
-            
-            if detection.evidence_bundle:
-                for key, value in detection.evidence_bundle.items():
-                    if key not in ['score']:
-                        f.write(f"{key.replace('_', ' ').title()}: {value}\n")
-    
-    def _calculate_summary_stats(self, detections: List[Detection]) -> Dict[str, Any]:
+
+
+class ReportGenerator:
+    """Generates human-readable summary reports from detection results."""
+
+    def __init__(self, results_dir: Path):
+        self.results_dir = results_dir
+        self.detections = self._load_detections()
+
+    def _load_detections(self) -> List[Dict[str, Any]]:
+        """Load detection results from JSONL file."""
+        detections_file = self.results_dir / "detections.jsonl"
+
+        if not detections_file.exists():
+            raise FileNotFoundError(f"Detections file not found: {detections_file}")
+
+        detections = []
+        with open(detections_file, "r", encoding="utf-8") as f:
+            for line in f:
+                if line.strip():
+                    detections.append(json.loads(line))
+
+        return detections
+
+    def calculate_statistics(self) -> Dict[str, Any]:
         """Calculate summary statistics."""
-        if not detections:
+        if not self.detections:
             return {
-                'Total Detections': 0,
-                'High Confidence': 0,
-                'Likely Transitions': 0,
-                'Average Score': 0.0
+                "total_detections": 0,
+                "high_confidence": 0,
+                "likely_transitions": 0,
+                "average_score": 0.0,
+                "same_agency_count": 0,
+                "cross_agency_count": 0,
             }
-        
-        high_confidence = sum(1 for d in detections if d.confidence == "High Confidence")
-        likely_transitions = len(detections) - high_confidence
-        avg_score = sum(d.likelihood_score for d in detections) / len(detections)
-        
-        # Agency analysis
-        same_agency = sum(1 for d in detections if d.sbir_award.agency == d.contract.agency)
-        
+
+        high_confidence = sum(
+            1 for d in self.detections if d["confidence"] == "High Confidence"
+        )
+        likely_transitions = len(self.detections) - high_confidence
+
+        total_score = sum(d["likelihood_score"] for d in self.detections)
+        average_score = total_score / len(self.detections) if self.detections else 0.0
+
+        same_agency = sum(
+            1
+            for d in self.detections
+            if d["sbir_award"]["agency"] == d["contract"]["agency"]
+        )
+        cross_agency = len(self.detections) - same_agency
+
         return {
-            'Total Detections': len(detections),
-            'High Confidence': high_confidence,
-            'Likely Transitions': likely_transitions,
-            'Average Score': round(avg_score, 3),
-            'Same Agency Transitions': same_agency,
-            'Cross-Agency Transitions': len(detections) - same_agency
+            "total_detections": len(self.detections),
+            "high_confidence": high_confidence,
+            "likely_transitions": likely_transitions,
+            "average_score": average_score,
+            "same_agency_count": same_agency,
+            "cross_agency_count": cross_agency,
+            "score_distribution": self._calculate_score_distribution(),
+            "timing_analysis": self._analyze_timing_patterns(),
+            "agency_breakdown": self._analyze_agency_patterns(),
         }
+
+    def generate_text_report(self, include_details: bool = False) -> str:
+        """Generate plain text summary report."""
+        stats = self.calculate_statistics()
+
+        lines = [
+            "SBIR TRANSITION DETECTION SUMMARY",
+            "=" * 50,
+            "",
+            f"Total Detections: {stats['total_detections']}",
+            f"High Confidence: {stats['high_confidence']}",
+            f"Likely Transitions: {stats['likely_transitions']}",
+            "",
+            f"Average Score: {stats['average_score']:.3f}",
+            f"Same Agency Transitions: {stats['same_agency_count']}",
+            f"Cross Agency Transitions: {stats['cross_agency_count']}",
+            "",
+        ]
+
+        if include_details and stats["total_detections"] > 0:
+            lines.extend(self._generate_detailed_analysis(stats))
+
+        return "\n".join(lines)
+
+    def generate_markdown_report(self, include_details: bool = False) -> str:
+        """Generate markdown summary report."""
+        stats = self.calculate_statistics()
+
+        lines = [
+            "# SBIR Transition Detection Summary",
+            "",
+            "## Overview",
+            "",
+            f"- **Total Detections**: {stats['total_detections']}",
+            f"- **High Confidence**: {stats['high_confidence']}",
+            f"- **Likely Transitions**: {stats['likely_transitions']}",
+            "",
+            "## Statistics",
+            "",
+            f"- **Average Score**: {stats['average_score']:.3f}",
+            f"- **Same Agency**: {stats['same_agency_count']}",
+            f"- **Cross Agency**: {stats['cross_agency_count']}",
+            "",
+        ]
+
+        if include_details and stats["total_detections"] > 0:
+            lines.extend(self._generate_detailed_markdown(stats))
+
+        return "\n".join(lines)
+
+    def generate_json_report(self) -> Dict[str, Any]:
+        """Generate JSON summary report."""
+        return self.calculate_statistics()
+
+    def view_single_detection(self, detection_id: str, format: str):
+        """View a single detection's evidence."""
+        evidence_file = self.results_dir / f"{detection_id}.json"
+
+        if not evidence_file.exists():
+            raise FileNotFoundError(f"Evidence file not found: {evidence_file}")
+
+        with open(evidence_file, "r") as f:
+            evidence = json.load(f)
+
+        if format == "json":
+            click.echo(json.dumps(evidence, indent=2))
+        elif format == "full":
+            self._print_full_evidence(evidence)
+        else:  # summary
+            self._print_summary_evidence(evidence)
+
+    def list_detections(self, confidence: Optional[str], format: str):
+        """List all detections, optionally filtered by confidence."""
+        detections = self.detections
+
+        if confidence:
+            detections = [d for d in detections if d.get("confidence") == confidence]
+
+        if format == "json":
+            click.echo(json.dumps(detections, indent=2))
+        else:
+            for detection in detections:
+                click.echo(
+                    f"{detection.get('detection_id', 'Unknown')}: {detection.get('confidence', 'N/A')} - {detection.get('likelihood_score', 0):.3f}"
+                )
+
+    def _calculate_score_distribution(self) -> Dict[str, int]:
+        """Calculate distribution of likelihood scores."""
+        if not self.detections:
+            return {}
+
+        distribution = {
+            "0.0-0.2": 0,
+            "0.2-0.4": 0,
+            "0.4-0.6": 0,
+            "0.6-0.8": 0,
+            "0.8-1.0": 0,
+        }
+
+        for detection in self.detections:
+            score = detection["likelihood_score"]
+            if score < 0.2:
+                distribution["0.0-0.2"] += 1
+            elif score < 0.4:
+                distribution["0.2-0.4"] += 1
+            elif score < 0.6:
+                distribution["0.4-0.6"] += 1
+            elif score < 0.8:
+                distribution["0.6-0.8"] += 1
+            else:
+                distribution["0.8-1.0"] += 1
+
+        return distribution
+
+    def _analyze_timing_patterns(self) -> Dict[str, Any]:
+        """Analyze timing patterns in detections."""
+        if not self.detections:
+            return {}
+
+        # Placeholder for timing analysis
+        return {
+            "avg_time_to_transition": "Not implemented",
+            "median_time_to_transition": "Not implemented",
+        }
+
+    def _analyze_agency_patterns(self) -> Dict[str, int]:
+        """Analyze patterns by agency."""
+        if not self.detections:
+            return {}
+
+        agency_counts = {}
+        for detection in self.detections:
+            agency = detection["sbir_award"]["agency"]
+            agency_counts[agency] = agency_counts.get(agency, 0) + 1
+
+        return agency_counts
+
+    def _generate_detailed_analysis(self, stats: Dict[str, Any]) -> List[str]:
+        """Generate detailed analysis section."""
+        lines = ["DETAILED ANALYSIS", "-" * 50, "", "Score Distribution:"]
+
+        for range_label, count in stats["score_distribution"].items():
+            lines.append(f"  {range_label}: {count}")
+
+        lines.extend(["", "Agency Breakdown:"])
+        for agency, count in stats["agency_breakdown"].items():
+            lines.append(f"  {agency}: {count}")
+
+        return lines
+
+    def _generate_detailed_markdown(self, stats: Dict[str, Any]) -> List[str]:
+        """Generate detailed analysis section in markdown."""
+        lines = ["## Detailed Analysis", "", "### Score Distribution", ""]
+
+        for range_label, count in stats["score_distribution"].items():
+            lines.append(f"- **{range_label}**: {count}")
+
+        lines.extend(["", "### Agency Breakdown", ""])
+        for agency, count in stats["agency_breakdown"].items():
+            lines.append(f"- **{agency}**: {count}")
+
+        return lines
+
+    def _print_full_evidence(self, evidence: Dict[str, Any]):
+        """Print full evidence details."""
+        click.echo(json.dumps(evidence, indent=2))
+
+    def _print_summary_evidence(self, evidence: Dict[str, Any]):
+        """Print summary of evidence."""
+        click.echo(f"Detection ID: {evidence.get('detection_id', 'Unknown')}")
+        click.echo(f"Confidence: {evidence.get('confidence', 'N/A')}")
+        click.echo(f"Score: {evidence.get('likelihood_score', 0):.3f}")

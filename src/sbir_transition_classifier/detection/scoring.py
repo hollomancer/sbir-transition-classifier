@@ -302,27 +302,31 @@ class ConfigurableScorer:
         Returns:
             True if within timing window
         """
+        from ..utils.dates import (
+            is_within_timing_window as is_within_timing_window_util,
+        )
+
         completion_date = sbir_award.get("completion_date")
+        award_date = sbir_award.get("award_date")
         start_date = contract.get("start_date")
 
-        if pd.isna(completion_date) or pd.isna(start_date):
+        if pd.isna(start_date):
             return False
 
         # Convert to datetime if needed
         if isinstance(completion_date, str):
             completion_date = pd.to_datetime(completion_date)
+        if isinstance(award_date, str):
+            award_date = pd.to_datetime(award_date)
         if isinstance(start_date, str):
             start_date = pd.to_datetime(start_date)
 
-        # Calculate timing bounds
-        min_date = completion_date + timedelta(
-            days=30 * self.config.detection.timing.min_months_after_phase2
+        return is_within_timing_window_util(
+            award_date=award_date,
+            contract_date=start_date,
+            config=self.config,
+            completion_date=completion_date,
         )
-        max_date = completion_date + timedelta(
-            days=30 * self.config.detection.timing.max_months_after_phase2
-        )
-
-        return min_date <= start_date <= max_date
 
     def _agencies_match(
         self, sbir_award: Dict[str, Any], contract: Dict[str, Any]
@@ -340,6 +344,8 @@ class ConfigurableScorer:
         self, sbir_award: Dict[str, Any], contract: Dict[str, Any]
     ) -> float:
         """Calculate timing proximity score (closer = higher score)."""
+        from ..utils.dates import get_months_between
+
         completion_date = sbir_award.get("completion_date")
         start_date = contract.get("start_date")
 
@@ -352,19 +358,19 @@ class ConfigurableScorer:
         if isinstance(start_date, str):
             start_date = pd.to_datetime(start_date)
 
-        days_diff = (start_date - completion_date).days
+        months_diff = get_months_between(completion_date, start_date)
 
         # Score based on proximity (closer = higher score)
-        max_days = 30 * self.config.detection.timing.max_months_after_phase2
+        max_months = self.config.detection.timing.max_months_after_phase2
 
-        if days_diff <= 0:
+        if months_diff < 0:
             return 0.0  # Contract started before SBIR completion
-        elif days_diff <= 90:  # Within 3 months
+        elif months_diff <= 3:  # Within 3 months
             return 1.0
-        elif days_diff <= 365:  # Within 1 year
-            return 1.0 - (days_diff - 90) / (365 - 90) * 0.5
-        elif days_diff <= max_days:
-            return 0.5 - (days_diff - 365) / (max_days - 365) * 0.5
+        elif months_diff <= 12:  # Within 1 year
+            return 1.0 - (months_diff - 3) / (12 - 3) * 0.5
+        elif months_diff <= max_months:
+            return 0.5 - (months_diff - 12) / (max_months - 12) * 0.5
         else:
             return 0.0
 

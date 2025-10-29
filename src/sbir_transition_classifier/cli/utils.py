@@ -61,9 +61,17 @@ class CliContext:
         self.console.print(f"ℹ {message}", style="blue", **kwargs)
 
     def create_table(self, *columns: str, **kwargs) -> Table:
+        """Create a Rich table using the TableFormatter."""
+        return TableFormatter.create_table(*columns, **kwargs)
+
+
+class TableFormatter:
+    """Utility class for creating standardized Rich tables."""
+
+    @staticmethod
+    def create_table(*columns: str, **kwargs) -> Table:
         """Create a Rich table with standard styling."""
-        table = Table(*columns, show_header=True, **kwargs)
-        return table
+        return Table(*columns, show_header=True, **kwargs)
 
 
 @contextmanager
