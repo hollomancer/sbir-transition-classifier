@@ -1,14 +1,10 @@
 # SBIR Transition Detection System
 
-See Documentation: [docs/README.md](docs/README.md) • [System Architecture](docs/SYSTEM_ARCHITECTURE.md) • [Implementation Guide](docs/IMPLEMENTATION_GUIDE.md) • [Testing Strategy](docs/TESTING_STRATEGY.md)
-
 A command-line tool to detect untagged SBIR Phase III transitions by analyzing federal spending data and identifying potential commercialization patterns.
 
 ## Overview
 
-This system is intended to process bulk federal spending data using a combination of heuristics and machine learning to identify potential SBIR Phase III transitions. The primary goal is to create a reliable, auditable process for identifying SBIR commercialization that is not officially flagged through comprehensive data analysis and export capabilities.
-
-But it's not done yet. See `docs/IMPLEMENTATION_GUIDE.md` for a development playbook, including safe, repeatable steps to purge large files from git history (history-purge procedure) and guidance for collaborators after a history rewrite.
+This system processes bulk federal spending data using a combination of heuristics and configuration-driven detection to identify potential SBIR Phase III transitions. The primary goal is to create a reliable, auditable process for identifying SBIR commercialization that is not officially flagged through comprehensive data analysis and export capabilities.
 
 ## Features
 
@@ -17,8 +13,9 @@ But it's not done yet. See `docs/IMPLEMENTATION_GUIDE.md` for a development play
 - **Command-Line Interface**: Easy-to-use CLI tools for data loading, processing, and export
 - **Auditable Evidence**: Each detection includes a comprehensive evidence bundle
 - **Bulk Data Processing**: Efficiently processes large federal spending datasets with progress tracking
-- **Multiple Export Formats**: Export results as JSONL, CSV, or both formats
+- **Multiple Export Formats**: Export results as JSONL, CSV, or Excel formats
 - **Rich Progress Indicators**: Visual progress bars and detailed status updates for long-running operations
+- **Configuration-Driven**: Customizable detection thresholds and scoring parameters via YAML config
 
 ## Quick Start
 
@@ -35,75 +32,37 @@ But it's not done yet. See `docs/IMPLEMENTATION_GUIDE.md` for a development play
    cd sbir-transition-classifier
    ```
 
-2. **Run the setup script**:
-   ```bash
-   poetry install
-   ```
-
-   Or manually:
+2. **Install dependencies**:
    ```bash
    poetry install
    ```
 
 3. **Prepare data**:
-   - Place SBIR awards data in `data/award_data.csv`
-   - Add USAspending bulk data files to `data/` directory
-   - The system will automatically detect and process CSV files
+   - Place SBIR awards data in `data/awards.csv`
+   - Add federal contract data files to `data/` directory
+   - The system will automatically discover CSV files
    - See [Data Setup](#data-setup) section below for detailed requirements
 
-### Usage
+### Quick Commands
 
-#### 1. Quick Bulk Processing (Recommended)
 ```bash
-# Run complete detection pipeline with automatic data loading and export
+# Run complete detection pipeline
 poetry run sbir-detect bulk-process --verbose
 
-# Or using the module directly (package-invocation)
-poetry run python -m sbir_transition_classifier.cli.main bulk-process --verbose
-```
+# Or step-by-step:
 
-#### 2. Step-by-Step Processing
+# Load SBIR awards
+poetry run sbir-detect data load-sbir --file-path data/awards.csv --verbose
 
-**Load SBIR Awards Data:**
-```bash
-poetry run sbir-detect data load-sbir --file-path data/award_data.csv --verbose
-```
-
-**Load Contract Data:**
-```bash
+# Load contract data
 poetry run sbir-detect data load-contracts --file-path data/contracts.csv --verbose
-```
 
-**Export Detection Results:**
-```bash
-# Export as JSONL
+# Export results
 poetry run sbir-detect export jsonl --output-path output/detections.jsonl --verbose
+poetry run sbir-detect export csv --output-path output/summary.csv --verbose
 
-# Export as CSV summary
-poetry run sbir-detect export csv --output-path output/summary.csv
-```
-
-#### 3. CLI Commands
-
-**View System Information:**
-```bash
+# View system info
 poetry run sbir-detect info
-```
-
-**Quick Database Statistics:**
-```bash
-poetry run sbir-detect quick-stats
-```
-
-**View All Commands:**
-```bash
-poetry run sbir-detect --help
-
-# View data commands
-poetry run sbir-detect data --help
-
-# View export commands
-poetry run sbir-detect export --help
 ```
 
 ## Architecture
@@ -114,88 +73,268 @@ poetry run sbir-detect export --help
 - **Progress Indicators**: Rich, tqdm
 - **Database**: SQLite
 - **Data Processing**: Pandas
-- **Machine Learning**: Optional — model training tools are not required for core CLI processing (see `docs/IMPLEMENTATION_GUIDE.md` for model workflows).
 - **Logging**: Loguru
+- **Configuration**: YAML-based schema with Pydantic
 - **Dependency Management**: Poetry
 
 ### Project Structure
 ```
 src/sbir_transition_classifier/
-├── cli/           # Command-line interface commands
-├── core/          # Configuration and data models
-├── data/          # Data schemas and validation
-├── detection/     # Detection algorithms and scoring
-└── db/            # Database connection and management
+├── cli/              # Command-line interface
+│   ├── main.py       # CLI entry point
+│   ├── bulk.py       # Bulk processing command
+│   ├── run.py        # Single-run command
+│   ├── data.py       # Data loading commands
+│   ├── export.py     # Export commands
+│   ├── reports.py    # Reporting commands
+│   ├── validate.py   # Configuration validation
+│   ├── reset.py      # Configuration reset/templates
+│   ├── hygiene.py    # Data quality commands
+│   └── output.py     # Output generation utilities
+├── core/             # Shared configuration and models
+│   ├── models.py     # Data models (Vendor, Contract, Award)
+│   └── vendor_matching.py  # Vendor name normalization
+├── config/           # Configuration management
+│   ├── loader.py     # Config file loading
+│   ├── schema.py     # Config schema and validation
+│   └── reset.py      # Config templates and reset
+├── data/             # Data schemas and validation
+│   ├── models.py     # Pydantic schemas
+│   ├── evidence.py   # Evidence bundle definitions
+│   └── schemas.py    # Data transfer schemas
+├── detection/        # Detection algorithms
+│   ├── main.py       # Main detection logic
+│   ├── pipeline.py   # Detection pipeline
+│   ├── scoring.py    # Scoring algorithms
+│   └── heuristics.py # Heuristic rules
+├── db/               # Database access layer
+│   ├── database.py   # SQLAlchemy setup
+│   ├── config.py     # DB configuration
+│   └── queries.py    # SQL queries
+├── ingestion/        # Data loading
+│   ├── sbir.py       # SBIR data ingestion
+│   ├── contracts.py  # Contract data ingestion
+│   ├── base.py       # Base ingester
+│   └── factory.py    # Ingester factory
+└── utils/            # Utility functions
+    ├── dates.py      # Date calculations
+    └── __init__.py
 
-scripts/           # Data loading and export utilities
-tests/             # Unit and integration tests
-output/            # Generated reports and exports
+tests/
+├── unit/             # Unit tests
+└── integration/      # Integration tests
+
+output/               # Generated reports and exports
+data/                 # Input data files (not in git)
 ```
 
 ## Data Model
 
-The system uses five main entities:
+The system uses five main database entities:
+
 - **vendors**: Commercial entities receiving awards
 - **vendor_identifiers**: Cross-walking between ID systems (UEI, CAGE, DUNS)
 - **sbir_awards**: SBIR Phase I and II awards
 - **contracts**: Federal contract vehicles from FPDS/USAspending
-- **detections**: Identified potential transitions with evidence
+- **detections**: Identified potential transitions with evidence bundles
 
 ## Detection Logic
 
 ### High-Confidence Signals
-- Same service branch and agency
+- Same agency (service branch match)
 - Sole-source contract awards
-- Timing within 24 months of Phase II completion
+- Timing within configured window (default: 1-24 months) after Phase II completion
 - Service/topic continuity
 
 ### Likely Transition Signals
-- Cross-service transitions
+- Cross-service transitions (same department, different branch)
 - Competed contracts with SBIR indicators
 - Department-level continuity
-- Text-based analysis of descriptions
+- Text-based description analysis
+
+### Configuration
+Detection thresholds and parameters are configured via YAML:
+
+```yaml
+detection:
+  eligible_phases: ["Phase II"]
+  thresholds:
+    high_confidence: 0.85
+    likely_transition: 0.65
+  timing:
+    min_months_after_phase2: 1
+    max_months_after_phase2: 24
+  scoring:
+    sole_source_weight: 0.30
+    timing_weight: 0.25
+    agency_match_weight: 0.20
+    vendor_match_weight: 0.25
+```
 
 ## Command-Line Reference
 
-### Main Commands
+### Core Commands
 
-**`bulk-process`** - Complete end-to-end processing pipeline
+**`bulk-process`** - Complete end-to-end detection pipeline
 ```bash
 poetry run sbir-detect bulk-process [OPTIONS]
 
 Options:
-  --data-dir PATH          Directory containing input data files [default: ./data]
-  --output-dir PATH        Output directory for results [default: ./output]
-  --chunk-size INTEGER     Batch size for processing [default: 1000]
-  --export-format [jsonl|csv|both]  Export format [default: both]
-  --verbose, -v            Enable detailed progress logging
+  --data-dir PATH         Directory containing input CSV files [default: ./data]
+  --output-dir PATH       Output directory for results [default: ./output]
+  --chunk-size INTEGER    Batch size for processing [default: 5000]
+  --export-format TEXT    Format: jsonl|csv|both [default: both]
+  --verbose, -v           Enable detailed progress logging
+  --quiet, -q             Minimal output
 ```
+
+**`run`** - Execute detection with explicit configuration
+```bash
+poetry run sbir-detect run [OPTIONS]
+
+Options:
+  --config PATH           Path to YAML configuration file
+  --output PATH           Output directory or file for results (required)
+  --data-dir PATH         Directory with input data [default: ./data]
+  --verbose, -v           Enable verbose logging
+```
+
+**`validate-config`** - Validate configuration file
+```bash
+poetry run sbir-detect validate-config [OPTIONS]
+
+Options:
+  --config PATH           Configuration file to validate (required)
+  --verbose, -v           Show detailed validation results
+```
+
+**`reset-config`** - Generate configuration from template
+```bash
+poetry run sbir-detect reset-config [OPTIONS]
+
+Options:
+  --output PATH           Output path for config file (required)
+  --template TEXT         Template: default|high-precision|broad-discovery
+```
+
+**`list-templates`** - Show available configuration templates
+```bash
+poetry run sbir-detect list-templates
+```
+
+**`show-template`** - Display template content
+```bash
+poetry run sbir-detect show-template --template default
+```
+
+### Data Commands
+
+**`data load-sbir`** - Load SBIR award data
+```bash
+poetry run sbir-detect data load-sbir [OPTIONS]
+
+Options:
+  --file-path PATH        Path to SBIR CSV file (required)
+  --chunk-size INTEGER    Records per batch [default: 5000]
+  --verbose, -v           Enable verbose logging
+```
+
+**`data load-contracts`** - Load federal contract data
+```bash
+poetry run sbir-detect data load-contracts [OPTIONS]
+
+Options:
+  --file-path PATH        Path to contracts CSV file (required)
+  --chunk-size INTEGER    Records per batch [default: 50000]
+  --verbose, -v           Enable verbose logging
+```
+
+### Export Commands
+
+**`export jsonl`** - Export detections as JSONL
+```bash
+poetry run sbir-detect export jsonl [OPTIONS]
+
+Options:
+  --output-path PATH      Output file path (required)
+  --verbose, -v           Enable verbose logging
+```
+
+**`export csv`** - Export detection summary as CSV
+```bash
+poetry run sbir-detect export csv [OPTIONS]
+
+Options:
+  --output-path PATH      Output file path (required)
+  --verbose, -v           Enable verbose logging
+```
+
+**`export excel`** - Export as Excel with multiple sheets
+```bash
+poetry run sbir-detect export excel [OPTIONS]
+
+Options:
+  --output-path PATH      Output file path (required)
+  --verbose, -v           Enable verbose logging
+```
+
+### Reporting Commands
+
+**`reports summary`** - Generate summary report
+```bash
+poetry run sbir-detect reports summary [OPTIONS]
+
+Options:
+  --results-dir PATH      Results directory (required)
+  --output PATH           Output file (prints to stdout if omitted)
+  --format TEXT           Format: text|markdown|json [default: text]
+  --include-details       Include detailed analysis
+```
+
+**`reports stats`** - Show detection statistics
+```bash
+poetry run sbir-detect reports stats [OPTIONS]
+
+Options:
+  --json, -j              Output as JSON
+```
+
+**`reports perspectives`** - Analyze transitions from multiple perspectives
+```bash
+poetry run sbir-detect reports perspectives [OPTIONS]
+
+Options:
+  --output PATH           Output file path
+  --format TEXT           Format: text|markdown|json [default: text]
+```
+
+### System Commands
 
 **`info`** - Display system and configuration information
 ```bash
 poetry run sbir-detect info
 ```
 
-**`quick-stats`** - Show database statistics and summary metrics
+**`hygiene check-dates`** - Validate data quality and detect anomalies
 ```bash
-poetry run sbir-detect quick-stats
+poetry run sbir-detect hygiene check-dates [OPTIONS]
+
+Options:
+  --data-dir PATH         Data directory to check
+  --output PATH           Output report path
 ```
 
-### Data Commands
-
-**Load SBIR Data:**
+**`version`** - Show version information
 ```bash
-# Load SBIR award data
-poetry run sbir-detect data load-sbir --file-path data/awards.csv --verbose
-
-# Load contract data
-poetry run sbir-detect data load-contracts --file-path data/contracts.csv --verbose
+poetry run sbir-detect version
 ```
 
-**Export Results:**
+**`--help`** - Show all available commands
 ```bash
-poetry run sbir-detect export jsonl --output-path results.jsonl
-poetry run sbir-detect export csv --output-path summary.csv
+poetry run sbir-detect --help
+poetry run sbir-detect data --help
+poetry run sbir-detect export --help
+poetry run sbir-detect reports --help
 ```
 
 ## Development
@@ -205,35 +344,49 @@ poetry run sbir-detect export csv --output-path summary.csv
 # Install dependencies
 poetry install
 
-# Activate virtual environment
+# Enter virtual environment
 poetry shell
 
-# Run CLI commands directly
+# Run CLI commands
 sbir-detect --help
 ```
 
 ### Running Tests
 ```bash
-# Unit tests
-poetry run pytest tests/unit/
+# Unit tests only
+poetry run pytest tests/unit/ -v
+
+# Unit tests with coverage
+poetry run pytest tests/unit/ -v --tb=short --cov=sbir_transition_classifier --cov-report=term-missing
 
 # Integration tests
-poetry run pytest tests/integration/
+poetry run pytest tests/integration/ -v
 
 # Full test suite
 poetry run pytest
+
+# Run specific test
+poetry run pytest -k test_name -v
 ```
 
 ### Development Workflow
 ```bash
-# Load sample data
+# 1. Create sample config
+poetry run sbir-detect reset-config --output config/dev.yaml --template default
+
+# 2. Validate config
+poetry run sbir-detect validate-config --config config/dev.yaml --verbose
+
+# 3. Load sample data
 poetry run sbir-detect data load-sbir --file-path data/sample_awards.csv --verbose
+poetry run sbir-detect data load-contracts --file-path data/sample_contracts.csv --verbose
 
-# Run detection on small dataset
-poetry run sbir-detect bulk-process --data-dir data/samples --verbose
+# 4. Run detection
+poetry run sbir-detect run --config config/dev.yaml --output output/dev_results/ --verbose
 
-# Export and review results
-poetry run sbir-detect export jsonl --output-path dev_results.jsonl --verbose
+# 5. Export and review results
+poetry run sbir-detect export jsonl --output-path output/dev_results.jsonl --verbose
+poetry run sbir-detect reports summary --results-dir output/ --format markdown --include-details
 ```
 
 ## Performance
@@ -242,50 +395,7 @@ poetry run sbir-detect export jsonl --output-path dev_results.jsonl --verbose
 - **Processing Rate**: 1000+ records/minute on modern hardware
 - **Scale**: Processes 10-100GB yearly data files
 - **Memory Efficiency**: Streaming processing with configurable chunk sizes
-
-## Progress Indicators
-
-The CLI provides rich visual feedback during processing:
-
-- **File Discovery**: Shows detected CSV files and their sizes
-- **Database Operations**: Progress bars for initialization and data loading
-- **Detection Pipeline**: Real-time progress with time estimates
-- **Export Operations**: Status updates for result generation
-- **Summary Tables**: Formatted results with processing metrics
-
-## Example Workflows
-
-### Complete Processing Pipeline
-```bash
-# 1. Setup environment
-poetry install
-
-# 2. Run complete pipeline with rich progress indicators
-poetry run sbir-detect bulk-process \
-  --data-dir ./data \
-  --output-dir ./output \
-  --export-format both \
-  --verbose
-
-# 3. Check results
-ls -la ./output/
-```
-
-### Manual Step-by-Step Processing
-```bash
-# Load data with progress tracking
-poetry run sbir-detect data load-sbir \
-  --file-path data/awards.csv \
-  --chunk-size 5000 \
-  --verbose
-
-# Check system status
-poetry run sbir-detect quick-stats
-
-# Export results in multiple formats
-poetry run sbir-detect export jsonl --output-path detections.jsonl --verbose
-poetry run sbir-detect export csv --output-path summary.csv
-```
+- **Database**: SQLite with indexed queries for fast lookups
 
 ## Data Setup
 
@@ -294,106 +404,146 @@ poetry run sbir-detect export csv --output-path summary.csv
 The project uses three data directories for different purposes:
 
 - **`data/`** - Production data files (excluded from git due to size)
-- **`data_subset/`** - Development-friendly smaller samples
+- **`output/`** - Generated reports, exports, and logs
 - **`test_data/`** - Test fixtures and mock data for unit/integration tests
 
-### Required Production Files (`data/`)
+### Required Data Files
 
 #### SBIR Awards Data
-- **File:** `award_data.csv` (364MB)
+- **File:** `data/awards.csv`
 - **Source:** SBIR.gov database export
-- **Contains:** Complete SBIR Phase I and II awards
+- **Columns:** award_piid, phase, agency, award_date, completion_date, topic, vendor_name, etc.
 
-#### USAspending Contract Data
-- **File:** `FY2026_All_Contracts_Full_20251008_1.csv` (18.6MB)
+#### Federal Contract Data
+- **File:** `data/contracts.csv`
 - **Source:** https://www.usaspending.gov/download_center/award_data_archive
-- **Contains:** FY2026 federal contract data
+- **Columns:** piid, agency, start_date, vendor_name, naics_code, psc_code, etc.
+
+### Data Format Requirements
+
+Both CSV files must contain headers and use UTF-8 encoding. The system is tolerant of minor format variations but requires:
+
+- **SBIR Data**: PIID, phase, agency, completion date
+- **Contract Data**: PIID, agency, start date, vendor name
 
 ### Download Instructions
 
-#### For SBIR Data:
-Contact project maintainer for `award_data.csv` file
+#### SBIR Awards Data
+Contact project maintainer for access to `awards.csv`
 
-#### For USAspending Data:
+#### USAspending Contract Data
 1. Visit https://www.usaspending.gov/download_center/award_data_archive
-2. Download contract data for desired fiscal years
-3. Place files in `data/` directory
+2. Select desired fiscal year(s)
+3. Download contract data (CSV format)
+4. Place in `data/` directory
 
-### Development Usage
-
-#### For Development (`data_subset/`)
-Place smaller versions of the main data files here for development work:
-- Subset of `award_data.csv`
-- Contract data samples
-- Development-friendly data sizes
-
-#### For Testing (`test_data/`)
-- Sample datasets for unit and integration testing
-- Test fixtures and mock data
-- Generate using scripts in `scripts/` directory
-
-### Data Processing Commands
+### Example Data Loading
 
 ```bash
 # Load SBIR data
-poetry run sbir-detect data load-sbir --file-path data/awards.csv --verbose
+poetry run sbir-detect data load-sbir \
+  --file-path data/awards.csv \
+  --chunk-size 5000 \
+  --verbose
 
-# Load contract data
-poetry run sbir-detect data load-contracts --file-path data/contracts.csv --verbose
-
-# Run complete pipeline
-poetry run sbir-detect bulk-process --data-dir ./data --verbose
-
-# Development with smaller datasets
-poetry run sbir-detect bulk-process --data-dir ./data_subset --verbose
+# Load contract data (may be large)
+poetry run sbir-detect data load-contracts \
+  --file-path data/contracts.csv \
+  --chunk-size 50000 \
+  --verbose
 ```
 
-**Note**: Start with smaller samples in `data_subset/` for testing before processing full datasets from `data/`.
+## Configuration
+
+### Default Configuration
+If no configuration is specified, the system uses built-in defaults. To customize:
+
+```bash
+# Generate default config
+poetry run sbir-detect reset-config --output config/custom.yaml
+
+# Edit config/custom.yaml with your parameters
+
+# Run with custom config
+poetry run sbir-detect run --config config/custom.yaml --output output/results/
+```
+
+### Available Templates
+- **default**: Balanced detection approach
+- **high-precision**: Higher thresholds, fewer false positives
+- **broad-discovery**: Lower thresholds, more detections
+
+```bash
+# Show template
+poetry run sbir-detect show-template --template high-precision
+
+# Create config from template
+poetry run sbir-detect reset-config --output config/strict.yaml --template high-precision
+```
 
 ## Contributing
 
 1. Follow existing CLI patterns and command structure
-2. Use rich progress indicators for long-running operations
+2. Use Rich progress indicators for long-running operations
 3. Include comprehensive logging and error handling
-4. Add tests for new functionality
+4. Add tests for new functionality (see AGENTS.md for testing guidelines)
 5. Update documentation and help text
-6. Ensure Poetry builds succeed
+6. Ensure Poetry builds succeed and all tests pass
+7. See AGENTS.md for detailed contribution guidelines
 
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
+## Documentation
+
+- **[AGENTS.md](AGENTS.md)** - Complete development and contribution guidelines
+- **Configuration**: See `config/` directory for example YAML files
+- **Testing**: See `tests/` directory for unit and integration tests
+
 ---
 
 ## Quick Reference Card
 
-**Most Common Commands:**
+### Most Common Tasks
+
 ```bash
-# Install dependencies
+# Initial setup
 poetry install
 
-# Quick start (recommended)
+# Full pipeline (recommended)
 poetry run sbir-detect bulk-process --verbose
 
-# Manual data loading
+# Manual steps
 poetry run sbir-detect data load-sbir --file-path data/awards.csv --verbose
 poetry run sbir-detect data load-contracts --file-path data/contracts.csv --verbose
+poetry run sbir-detect run --output output/results/ --verbose
 
 # Export results
-poetry run sbir-detect export jsonl --output-path results.jsonl --verbose
-poetry run sbir-detect export csv --output-path summary.csv
+poetry run sbir-detect export jsonl --output-path output/detections.jsonl --verbose
+poetry run sbir-detect export csv --output-path output/summary.csv
 
-# System status
-poetry run sbir-detect quick-stats
+# View results
+poetry run sbir-detect reports summary --results-dir output/ --format markdown
 ```
 
-**File Organization:**
-- `data/` - Input CSV files (awards, contracts)
+### File Organization
+- `data/` - Input CSV files
 - `output/` - Generated reports and exports
-- `cli/` - Command-line interface modules
-- `src/` - Core application code
+- `src/sbir_transition_classifier/cli/` - Command implementations
+- `src/sbir_transition_classifier/detection/` - Detection logic
+- `tests/` - Unit and integration tests
 
-**Log Files:**
-- Bulk processing creates timestamped logs in output directory
-- Use `--verbose` flag for detailed progress tracking
-- Rich progress bars show real-time status updates
+### Getting Help
+```bash
+# All commands
+poetry run sbir-detect --help
+
+# Command group help
+poetry run sbir-detect data --help
+poetry run sbir-detect export --help
+poetry run sbir-detect reports --help
+
+# System info
+poetry run sbir-detect info
+```
