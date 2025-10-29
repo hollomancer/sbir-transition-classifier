@@ -26,8 +26,6 @@ class VendorMatcher:
         " lp",
         " l.p.",
     ]
-</parameter>
-
 
     @staticmethod
     def normalize_name(vendor_name: str) -> str:
