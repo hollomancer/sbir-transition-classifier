@@ -21,11 +21,6 @@ click = "^8.1.7"
 rich = "^13.7.0"
 tqdm = "^4.66.0"
 
-# Optional, heavy ML / processing dependencies are provided as an "extras" group
-# so core installs remain lightweight for typical usage.
-[tool.poetry.extras]
-ml = ["xgboost", "scikit-learn", "dask"]
-
 [tool.poetry.scripts]
 sbir-detect = "sbir_transition_classifier.cli.main:main"
 

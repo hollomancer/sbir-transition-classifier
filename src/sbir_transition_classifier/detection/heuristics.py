@@ -7,24 +7,30 @@ from ..config.schema import ConfigSchema
 from ..core import models
 
 
-# Load runtime configuration using ConfigLoader with fallback to defaults
-def _load_runtime_config() -> ConfigSchema:
-    try:
-        return ConfigLoader.load_default()
-    except Exception:
-        return ConfigSchema()
+# Configuration will be passed as parameter instead of module-level global
 
 
-_CONFIG = _load_runtime_config()
-_ELIGIBLE_PHASES = set(_CONFIG.detection.eligible_phases)
-
-
-def find_candidate_contracts(db: Session, sbir_award: models.SbirAward):
+def find_candidate_contracts(
+    db: Session, sbir_award: models.SbirAward, config: ConfigSchema = None
+):
     """
     Finds contract vehicles that were awarded to the same vendor within the configured time window
     after the completion of a given SBIR Phase I or Phase II award.
+
+    Args:
+        db: Database session
+        sbir_award: SBIR award model
+        config: Configuration schema (optional, loads default if not provided)
     """
-    if sbir_award.phase not in _ELIGIBLE_PHASES:
+    if config is None:
+        try:
+            config = ConfigLoader.load_default()
+        except Exception:
+            config = ConfigSchema()
+
+    eligible_phases = set(config.detection.eligible_phases)
+
+    if sbir_award.phase not in eligible_phases:
         return []
 
     # Prefer completion date; fall back to award date

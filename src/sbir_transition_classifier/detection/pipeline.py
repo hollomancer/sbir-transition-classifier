@@ -9,6 +9,8 @@ from loguru import logger
 from ..config.schema import ConfigSchema
 from ..data.schemas import Detection, SbirAward, Contract
 from .scoring import ConfigurableScorer
+from ..core.vendor_matching import VendorMatcher
+from ..utils.dates import has_date_mismatch
 
 
 class ConfigurableDetectionPipeline:
